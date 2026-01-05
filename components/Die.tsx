@@ -151,6 +151,13 @@ const Die = forwardRef<DieHandle, DieProps>(
 
         const isRolling = useRef(false);
         const settleFrames = useRef(0);
+        const wasHeld = useRef(false);
+        const isHeldRef = useRef(isHeld);
+
+        useEffect(() => {
+            isHeldRef.current = isHeld;
+            console.log(`[Die] isHeld changed to: ${isHeld}`);
+        }, [isHeld]);
 
         const [debugValue, setDebugValue] = useState(1);
 
@@ -181,7 +188,23 @@ const Die = forwardRef<DieHandle, DieProps>(
                     const [rx, ry, rz] = eulerForValue(currentVal);
                     api.rotation.set(rx, ry, rz);
                 }
+                wasHeld.current = true;
             } else {
+                if (wasHeld.current) {
+                    // Die was held and is now released. It's likely sitting on the wood frame (Z > 5).
+                    // We need to bring it back to the table so it can be rolled.
+                    api.position.set(
+                        (Math.random() - 0.5) * 4, // Random X on table
+                        3.0, // Drop from slight height
+                        0 // Center Z
+                    );
+                    api.velocity.set(0, 0, 0);
+                    api.angularVelocity.set(0, 0, 0);
+                    api.wakeUp();
+                    wasHeld.current = false;
+                    isRolling.current = false; // Ensure it's ready to roll again
+                }
+
                 api.mass.set(1);
                 api.linearFactor.set(1, 1, 1);
                 api.angularFactor.set(1, 1, 1);
@@ -213,14 +236,12 @@ const Die = forwardRef<DieHandle, DieProps>(
 
         useImperativeHandle(ref, () => ({
             roll: () => {
-                if (isHeld) {
-                    finalize();
-                    return;
-                }
-
                 isRolling.current = true;
                 settleFrames.current = 0;
 
+                api.mass.set(1);
+                api.linearFactor.set(1, 1, 1);
+                api.angularFactor.set(1, 1, 1);
                 api.wakeUp();
 
                 // clear leftover motion
@@ -270,7 +291,7 @@ const Die = forwardRef<DieHandle, DieProps>(
                 }, 3500);
             },
 
-            resetPosition: (x, y, z) => {
+            resetPosition: (x: number, y: number, z: number) => {
                 api.position.set(x, y, z);
                 api.velocity.set(0, 0, 0);
                 api.angularVelocity.set(0, 0, 0);
@@ -299,7 +320,7 @@ const Die = forwardRef<DieHandle, DieProps>(
                 setDebugValue(v);
                 return v;
             },
-        }));
+        }), []);
 
         useFrame(() => {
             if (!isRolling.current) return;
@@ -310,10 +331,16 @@ const Die = forwardRef<DieHandle, DieProps>(
             const speed = Math.hypot(v[0], v[1], v[2]);
             const spin = Math.hypot(w[0], w[1], w[2]);
 
+            // Log first frame of roll to confirm checking
+            if (settleFrames.current === 0) {
+                console.log(`[Die] useFrame rolling. Speed: ${speed.toFixed(3)}, Spin: ${spin.toFixed(3)}`);
+            }
+
             if (speed < 0.05 && spin < 0.22) settleFrames.current += 1;
             else settleFrames.current = 0;
 
             if (settleFrames.current > 60) {
+                console.log('[Die] Settled.');
                 isRolling.current = false;
                 finalize();
             }
