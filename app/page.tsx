@@ -1,4 +1,3 @@
-// app/page.tsx
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -64,6 +63,8 @@ const BASE_H = 558;
 const INSET_X_BASE = 150;
 const INSET_Y_BASE = 135;
 
+const normalizeDie = (v: number) => Math.max(1, Math.min(6, Math.round(v)));
+
 export default function Page() {
   const isDev = process.env.NODE_ENV === 'development';
 
@@ -77,9 +78,6 @@ export default function Page() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [potentialScores, setPotentialScores] = useState<Record<ScoreCategory, number>>({} as any);
   const [isRolling, setIsRolling] = useState(false);
-
-  const awaitingRollRef = useRef(false);
-  const rollUnlockTimerRef = useRef<number | null>(null);
 
   const [setupStep, setSetupStep] = useState<'COUNT' | 'NAMES'>('COUNT');
   const [customNames, setCustomNames] = useState<string[]>([]);
@@ -127,15 +125,13 @@ export default function Page() {
     setSetupStep('COUNT');
     setCustomNames([]);
     setIsRolling(false);
-    awaitingRollRef.current = false;
     setShowCelebration(false);
     setMobileScorecardOpen(false);
-    if (rollUnlockTimerRef.current) window.clearTimeout(rollUnlockTimerRef.current);
-    rollUnlockTimerRef.current = null;
   };
 
   const handleDieClick = (idx: number) => {
     if (!gameState) return;
+    if (isRolling) return; // prevent mid-animation toggles
     if (gameState.rollsLeft === 3) return;
 
     const engine = enginesRef.current[activePlayer];
@@ -147,51 +143,25 @@ export default function Page() {
   };
 
   const handleTurnComplete = (results: number[]) => {
-    // eslint-disable-next-line no-console
-    console.log('TURN COMPLETE raw results:', results);
-    if (!awaitingRollRef.current) return;
-
-    awaitingRollRef.current = false;
+    // In game-correct mode: this is "visual animation finished".
     setIsRolling(false);
 
-    if (rollUnlockTimerRef.current) window.clearTimeout(rollUnlockTimerRef.current);
-    rollUnlockTimerRef.current = null;
-
-    const engine = enginesRef.current[activePlayer];
-    const sBefore = engine.getGameState();
-
-    if (sBefore.rollsLeft <= 0 || sBefore.isGameOver) {
-      const s = engine.getGameState();
-      setGameState(s);
-      setPotentialScores(s.rollsLeft === 3 ? ({} as any) : computePotentialScores(engine, s));
-      return;
-    }
-
-    try {
-      engine.rollDice(results as DieValue[]);
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error(e);
-    }
-
-    const sAfter = engine.getGameState();
-    setGameState(sAfter);
-    setEngineDiceValues(sAfter.diceValues.map((v) => Number(v)));
-    setPotentialScores(sAfter.rollsLeft === 3 ? ({} as any) : computePotentialScores(engine, sAfter));
-
     // Dev debug capture
-    setArenaEmittedValues(results.map((v) => Math.max(1, Math.min(6, Math.round(v)))));
+    setArenaEmittedValues(results.map((v) => normalizeDie(v)));
     if (arenaRef.current) {
       try {
-        setArenaVisualValues(arenaRef.current.getVisualValues());
-        setArenaRollSeq(arenaRef.current.getRollSeq());
+        requestAnimationFrame(() => {
+          if (!arenaRef.current) return;
+          setArenaVisualValues(arenaRef.current.getVisualValues());
+          setArenaRollSeq(arenaRef.current.getRollSeq());
+        });
       } catch {
         // ignore
       }
     }
 
     // Celebration: if current roll is a Yahtzee visually/emitted
-    const vals = results.map((v) => Math.max(1, Math.min(6, Math.round(v))));
+    const vals = results.map((v) => normalizeDie(v));
     if (vals.length === 5 && vals.every((v) => v === vals[0])) {
       setShowCelebration(false);
       requestAnimationFrame(() => setShowCelebration(true));
@@ -205,36 +175,61 @@ export default function Page() {
     if (gameState.isGameOver) return;
     if (!arenaRef.current) return;
 
+    const engine = enginesRef.current[activePlayer];
+
+    // Decide values NOW (game-correct).
+    const decided: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      if (gameState.heldDice[i]) {
+        decided[i] = normalizeDie(Number(gameState.diceValues[i] ?? 1));
+      } else {
+        decided[i] = 1 + Math.floor(Math.random() * 6);
+      }
+    }
+
+    // Commit to engine immediately (truth source)
+    try {
+      engine.rollDice(decided as DieValue[]);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(e);
+      return;
+    }
+
+    const sAfter = engine.getGameState();
+    setGameState(sAfter);
+    setEngineDiceValues(sAfter.diceValues.map((v) => Number(v)));
+    setPotentialScores(sAfter.rollsLeft === 3 ? ({} as any) : computePotentialScores(engine, sAfter));
+
+    // Animate then snap the visuals to the decided outcome
     setIsRolling(true);
-    awaitingRollRef.current = true;
-
-    if (rollUnlockTimerRef.current) window.clearTimeout(rollUnlockTimerRef.current);
-    rollUnlockTimerRef.current = window.setTimeout(() => {
-      awaitingRollRef.current = false;
-      setIsRolling(false);
-      rollUnlockTimerRef.current = null;
-    }, 5000) as unknown as number;
-
     void rollSound.play();
-    arenaRef.current.roll();
+    arenaRef.current.rollToResult(decided, { chaosMs: 1200 });
   };
 
   const forceSarzee = useCallback(() => {
     if (!gameState || isRolling) return;
     if (!arenaRef.current) return;
 
+    const engine = enginesRef.current[activePlayer];
+    const decided = [6, 6, 6, 6, 6];
+
+    try {
+      engine.rollDice(decided as DieValue[]);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(e);
+      return;
+    }
+
+    const sAfter = engine.getGameState();
+    setGameState(sAfter);
+    setEngineDiceValues(sAfter.diceValues.map((v) => Number(v)));
+    setPotentialScores(sAfter.rollsLeft === 3 ? ({} as any) : computePotentialScores(engine, sAfter));
+
     setIsRolling(true);
-    awaitingRollRef.current = true;
-
-    if (rollUnlockTimerRef.current) window.clearTimeout(rollUnlockTimerRef.current);
-    rollUnlockTimerRef.current = window.setTimeout(() => {
-      awaitingRollRef.current = false;
-      setIsRolling(false);
-      rollUnlockTimerRef.current = null;
-    }, 2000) as unknown as number;
-
-    arenaRef.current.forceResult([6, 6, 6, 6, 6]);
-  }, [gameState, isRolling]);
+    arenaRef.current.rollToResult(decided, { chaosMs: 700 });
+  }, [activePlayer, gameState, isRolling]);
 
   const triggerCelebration = useCallback(() => {
     setShowCelebration(false);
@@ -243,6 +238,7 @@ export default function Page() {
 
   const handleCategorySelect = (category: ScoreCategory) => {
     if (!gameState) return;
+    if (isRolling) return;
     if (gameState.rollsLeft === 3) return;
 
     const engine = enginesRef.current[activePlayer];
@@ -264,7 +260,6 @@ export default function Page() {
 
     arenaRef.current?.reset();
     setIsRolling(false);
-    awaitingRollRef.current = false;
     setMobileScorecardOpen(false);
 
     if (s.isGameOver) setPhase('GAME_OVER');
@@ -324,17 +319,16 @@ export default function Page() {
     setGameState(s);
     setPotentialScores(s.rollsLeft === 3 ? ({} as any) : computePotentialScores(engine, s));
     setIsRolling(false);
-    awaitingRollRef.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePlayer]);
 
   const engineStates = useMemo(() => enginesRef.current.map((e) => e.getGameState()), [activePlayer, phase, gameState]);
   const scorecards = engineStates.map((s) => s.scorecard);
   const totals = engineStates.map((s) => s.totalScore);
-  const yahtzeeBonuses = engineStates.map((s) => s.yahtzeeBonus); // NEW
+  const yahtzeeBonuses = engineStates.map((s) => s.yahtzeeBonus);
   const names = customNames;
 
-  const canInteractDice = !!gameState && gameState.rollsLeft < 3;
+  const canInteractDice = !!gameState && !isRolling && gameState.rollsLeft < 3;
   const canSelectCategory = !!gameState && !isRolling && gameState.rollsLeft < 3 && gameState.rollsLeft >= 0;
 
   const [imgInfo, setImgInfo] = useState<ImgInfo | null>(null);
@@ -536,7 +530,7 @@ export default function Page() {
             <MultiPlayerScorecard
               playerNames={names}
               scorecards={scorecards}
-              yahtzeeBonuses={yahtzeeBonuses} // NEW
+              yahtzeeBonuses={yahtzeeBonuses}
               totals={totals}
               activePlayerIndex={activePlayer}
               potentialScores={potentialScores}
@@ -591,7 +585,7 @@ export default function Page() {
               <MultiPlayerScorecard
                 playerNames={names}
                 scorecards={scorecards}
-                yahtzeeBonuses={yahtzeeBonuses} // NEW
+                yahtzeeBonuses={yahtzeeBonuses}
                 totals={totals}
                 activePlayerIndex={activePlayer}
                 potentialScores={potentialScores}
@@ -640,15 +634,6 @@ export default function Page() {
             </button>
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button onClick={forceSarzee} className="rounded bg-red-600/70 hover:bg-red-600 px-2 py-1 text-xs font-mono">
-              Force Sarzee
-            </button>
-            <button onClick={triggerCelebration} className="rounded bg-amber-500/70 hover:bg-amber-500 px-2 py-1 text-xs font-mono">
-              Celebration
-            </button>
-          </div>
-
           <label className="mt-3 flex items-center gap-2 text-xs font-mono">
             <input type="checkbox" checked={showDieNumbers} onChange={(e) => setShowDieNumbers(e.target.checked)} />
             Show numbers on dice
@@ -662,7 +647,7 @@ export default function Page() {
                 <div className="text-sm">[{arenaVisualValues.join(', ')}]</div>
               </div>
               <div>
-                <div className="opacity-70">Arena emitted (onTurnComplete)</div>
+                <div className="opacity-70">Arena emitted (animation done)</div>
                 <div className="text-sm">[{arenaEmittedValues.join(', ')}]</div>
               </div>
               <div>

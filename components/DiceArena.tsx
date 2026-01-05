@@ -2,21 +2,18 @@
 'use client';
 
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { Physics, useBox, usePlane, useContactMaterial } from '@react-three/cannon';
-import { Material } from 'cannon-es';
+import * as THREE from 'three';
+import { Canvas, useFrame } from '@react-three/fiber';
 import Die, { DieHandle } from './Die';
 
 export interface DiceArenaHandle {
     roll: () => void;
+    rollToResult: (values: number[], opts?: { chaosMs?: number }) => void;
     reset: () => void;
     forceResult: (values: number[]) => void;
 
-    /** Reads each die's current face-up value (1..6) directly from its quaternion. */
     getVisualValues: () => number[];
-    /** The last values emitted to onTurnComplete (normalized 1..6). */
     getLastEmittedValues: () => number[];
-    /** Monotonic roll sequence id (increments each roll/forceResult). */
     getRollSeq: () => number;
 }
 
@@ -26,152 +23,541 @@ interface DiceArenaProps {
     onDieClick: (index: number) => void;
     canInteract: boolean;
     diceColor?: string;
-    debugWalls?: boolean;
-
-    /** Show the debug number above each die (Die.tsx Text overlay). */
     showDebugNumbers?: boolean;
-
-    /** Aspect ratio (width/height) of the felt area the dice are rendered over */
     feltAspect?: number;
-
-    /** Optional tuning */
     arenaWorldHeight?: number;
 }
 
-function Floor() {
-    usePlane(() => ({
-        type: 'Static',
-        rotation: [-Math.PI / 2, 0, 0],
-        position: [0, 0, 0],
-    }));
-    return null;
+const DIE_SIZE = 1.11;
+const HALF = DIE_SIZE / 2;
+
+const clampDie = (v: number) => Math.max(1, Math.min(6, Math.round(v)));
+
+function eulerForValue(value: number): [number, number, number] {
+    switch (value) {
+        case 1:
+            return [0, 0, 0];
+        case 6:
+            return [Math.PI, 0, 0];
+        case 2:
+            return [-Math.PI / 2, 0, 0];
+        case 5:
+            return [Math.PI / 2, 0, 0];
+        case 3:
+            return [0, 0, Math.PI / 2];
+        case 4:
+            return [0, 0, -Math.PI / 2];
+        default:
+            return [0, 0, 0];
+    }
 }
 
-function Wall({ position, args }: { position: [number, number, number]; args: [number, number, number] }) {
-    useBox(() => ({
-        type: 'Static',
-        position,
-        args,
-    }));
-    return null;
+function mulberry32(seed: number) {
+    let t = seed >>> 0;
+    return () => {
+        t += 0x6d2b79f5;
+        let x = Math.imul(t ^ (t >>> 15), 1 | t);
+        x ^= x + Math.imul(x ^ (x >>> 7), 61 | x);
+        return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    };
 }
 
-function ArenaBounds({
-    width,
-    height,
-    wallHeight,
-    thickness,
-    debugWalls,
-    offsetX,
+function easeInOutCubic(x: number) {
+    return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}
+function easeOutCubic(x: number) {
+    return 1 - Math.pow(1 - x, 3);
+}
+
+function generateLandingPoints({
+    count,
+    rng,
+    minDist,
+    xMin,
+    xMax,
+    zMin,
+    zMax,
 }: {
-    width: number;
-    height: number;
-    wallHeight: number;
-    thickness: number;
-    debugWalls: boolean;
-    offsetX: number;
-}) {
-    const halfW = width / 2;
-    const halfH = height / 2;
-    const wallY = wallHeight / 2;
+    count: number;
+    rng: () => number;
+    minDist: number;
+    xMin: number;
+    xMax: number;
+    zMin: number;
+    zMax: number;
+}): THREE.Vector3[] {
+    const pts: THREE.Vector3[] = [];
+    const maxAttempts = 900;
 
-    return (
-        <>
-            <Floor />
+    for (let i = 0; i < count; i++) {
+        let placed = false;
 
-            {/* Z walls */}
-            <Wall position={[offsetX, wallY, -halfH - thickness / 2]} args={[width + thickness * 2, wallHeight, thickness]} />
-            <Wall position={[offsetX, wallY, halfH + thickness / 2]} args={[width + thickness * 2, wallHeight, thickness]} />
+        for (let a = 0; a < maxAttempts; a++) {
+            const x = xMin + (xMax - xMin) * rng();
+            const z = zMin + (zMax - zMin) * rng();
+            const c = new THREE.Vector3(x, 0.62, z);
 
-            {/* X walls */}
-            <Wall position={[-halfW - thickness / 2 + offsetX, wallY, 0]} args={[thickness, wallHeight, height]} />
-            <Wall position={[halfW + thickness / 2 + offsetX, wallY, 0]} args={[thickness, wallHeight, height]} />
+            let ok = true;
+            for (const p of pts) {
+                if (c.distanceTo(p) < minDist) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok) {
+                pts.push(c);
+                placed = true;
+                break;
+            }
+        }
 
-            {debugWalls && (
-                <mesh rotation={[-Math.PI / 2, 0, 0]} position={[offsetX, 0.001, 0]} raycast={() => null}>
-                    <planeGeometry args={[width, height]} />
-                    <meshStandardMaterial transparent opacity={0.12} color="red" />
-                </mesh>
-            )}
-        </>
-    );
+        if (!placed) {
+            const x = xMin + (xMax - xMin) * rng();
+            const z = zMin + (zMax - zMin) * rng();
+            pts.push(new THREE.Vector3(x, 0.62, z));
+        }
+    }
+
+    return pts;
 }
 
-function PhysicsScene({
-    arenaWidth,
-    arenaHeight,
-    wallHeight,
-    wallThickness,
-    debugWalls,
-    diceMaterial,
-    floorMaterial,
-    startPositions,
-    dieRefs,
+type DieAnim = {
+    active: boolean;
+    finishedMotion: boolean;
+
+    t: number;
+    dur: number;
+
+    p0: THREE.Vector3;
+    pMid: THREE.Vector3;
+    p1: THREE.Vector3;
+
+    q0: THREE.Quaternion;
+    qTarget: THREE.Quaternion;
+
+    lastPos: THREE.Vector3;
+    rollAccum: THREE.Quaternion;
+
+    arc: number;
+    wobbleYaw: number;
+    wobblePitch: number;
+
+    // NEW: correction computed once at ground start
+    groundStarted: boolean;
+    hasGroundCorrection: boolean;
+    corrAxis: THREE.Vector3;
+    corrAngle: number;
+};
+
+function AnimatedDiceLayer({
     heldDice,
-    onDieClick,
     canInteract,
+    onDieClick,
     diceColor,
     showDebugNumbers,
-    onDieResult,
+    feltAspect,
+    arenaWorldHeight,
+    onTurnComplete,
+    apiRef,
 }: {
-    arenaWidth: number;
-    arenaHeight: number;
-    wallHeight: number;
-    wallThickness: number;
-    debugWalls: boolean;
-    diceMaterial: Material;
-    floorMaterial: Material;
-    startPositions: Array<[number, number, number]>;
-    dieRefs: React.MutableRefObject<Array<DieHandle | null>>;
     heldDice: boolean[];
-    onDieClick: (idx: number) => void;
     canInteract: boolean;
+    onDieClick: (idx: number) => void;
     diceColor: string;
     showDebugNumbers: boolean;
-    onDieResult: (idx: number, value: number) => void;
+    feltAspect: number;
+    arenaWorldHeight: number;
+    onTurnComplete?: (results: number[]) => void;
+    apiRef: React.MutableRefObject<DiceArenaHandle | null>;
 }) {
-    useContactMaterial(diceMaterial as any, floorMaterial as any, {
-        friction: 0.7,
-        restitution: 0.12,
-        contactEquationStiffness: 1e7,
-        contactEquationRelaxation: 3,
-        frictionEquationStiffness: 1e7,
-        frictionEquationRelaxation: 3,
+    const dieRefs = useRef<Array<DieHandle | null>>([null, null, null, null, null]);
+
+    const rollSeqRef = useRef(0);
+    const lastEmittedValuesRef = useRef<number[]>([1, 1, 1, 1, 1]);
+
+    const arenaHeight = arenaWorldHeight;
+    const arenaWidth = arenaWorldHeight * feltAspect;
+    const offsetX = 1.0;
+
+    const positions = useRef<THREE.Vector3[]>(
+        Array.from({ length: 5 }, (_, i) => new THREE.Vector3(offsetX + (i - 2) * 1.6, 0.62, 0))
+    );
+    const quats = useRef<THREE.Quaternion[]>(Array.from({ length: 5 }, () => new THREE.Quaternion()));
+
+    const anim = useRef<DieAnim[]>(
+        Array.from({ length: 5 }, () => ({
+            active: false,
+            finishedMotion: false,
+            t: 0,
+            dur: 1.0,
+            p0: new THREE.Vector3(),
+            pMid: new THREE.Vector3(),
+            p1: new THREE.Vector3(),
+            q0: new THREE.Quaternion(),
+            qTarget: new THREE.Quaternion(),
+            lastPos: new THREE.Vector3(),
+            rollAccum: new THREE.Quaternion(),
+            arc: 2.2,
+            wobbleYaw: 0,
+            wobblePitch: 0,
+
+            groundStarted: false,
+            hasGroundCorrection: false,
+            corrAxis: new THREE.Vector3(1, 0, 0),
+            corrAngle: 0,
+        }))
+    );
+
+    const heldPos = useMemo(() => {
+        const z = arenaHeight * 0.42;
+        return Array.from({ length: 5 }, (_, i) => new THREE.Vector3(offsetX + (i - 2) * 1.55, 0.62, z));
+    }, [arenaHeight]);
+
+    const emit = (vals: number[]) => {
+        const v = vals.map(clampDie);
+        lastEmittedValuesRef.current = v;
+        requestAnimationFrame(() => onTurnComplete?.(v));
+    };
+
+    const cancelAnimForDie = (i: number) => {
+        const a = anim.current[i];
+        a.active = false;
+        a.finishedMotion = false;
+        a.t = 0;
+        a.groundStarted = false;
+        a.hasGroundCorrection = false;
+        a.corrAngle = 0;
+        a.corrAxis.set(1, 0, 0);
+    };
+
+    const reset = () => {
+        for (let i = 0; i < 5; i++) {
+            positions.current[i].set(offsetX + (i - 2) * 1.6, 0.62, 0);
+            quats.current[i].identity();
+            cancelAnimForDie(i);
+            anim.current[i].rollAccum.identity();
+        }
+        lastEmittedValuesRef.current = [1, 1, 1, 1, 1];
+    };
+
+    const forceResult = (values: number[]) => {
+        rollSeqRef.current += 1;
+        for (let i = 0; i < 5; i++) {
+            cancelAnimForDie(i);
+
+            const v = clampDie(values[i] ?? 1);
+            const [rx, , rz] = eulerForValue(v);
+            const qFace = new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, 0, rz));
+            const yaw = (Math.floor(Math.random() * 4) * Math.PI) / 2;
+            const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+            quats.current[i].copy(qYaw.multiply(qFace));
+        }
+        emit(values);
+    };
+
+    const rollToResult = (values: number[], opts?: { chaosMs?: number }) => {
+        rollSeqRef.current += 1;
+        const seq = rollSeqRef.current;
+        const rng = mulberry32(0xabc000 + seq * 97);
+
+        const baseDur = Math.max(0.9, Math.min(1.7, (opts?.chaosMs ?? 1150) / 1000));
+        lastEmittedValuesRef.current = values.map(clampDie);
+
+        const launchZ = arenaHeight * 0.36;
+        const launchX = offsetX;
+        const launchSpread = Math.min(2.4, arenaWidth * 0.2);
+
+        const marginX = 1.35;
+        const marginZ = 1.45;
+        const xMin = offsetX - arenaWidth / 2 + marginX;
+        const xMax = offsetX + arenaWidth / 2 - marginX;
+        const zMin = -arenaHeight / 2 + marginZ;
+        const zMax = arenaHeight / 2 - marginZ;
+
+        const land = generateLandingPoints({
+            count: 5,
+            rng,
+            minDist: 1.35,
+            xMin,
+            xMax,
+            zMin,
+            zMax,
+        }).sort(() => rng() - 0.5);
+
+        for (let i = 0; i < 5; i++) {
+            const a = anim.current[i];
+
+            if (heldDice[i]) {
+                cancelAnimForDie(i);
+                positions.current[i].copy(heldPos[i]);
+                continue;
+            }
+
+            a.active = true;
+            a.finishedMotion = false;
+            a.t = 0;
+            a.dur = baseDur + (rng() - 0.5) * 0.22;
+
+            a.groundStarted = false;
+            a.hasGroundCorrection = false;
+            a.corrAngle = 0;
+            a.corrAxis.set(1, 0, 0);
+
+            const sx = launchX + (rng() - 0.5) * launchSpread;
+            const sz = launchZ + (rng() - 0.5) * 0.75;
+            a.p0.set(sx, 0.62, sz);
+
+            a.p1.copy(land[i]);
+
+            const impactOffset = 1.0 + rng() * 1.0;
+            const theta = rng() * Math.PI * 2;
+            const ix = a.p1.x + Math.cos(theta) * impactOffset;
+            const iz = a.p1.z + Math.sin(theta) * impactOffset;
+            a.pMid.set(
+                Math.max(xMin, Math.min(xMax, ix)),
+                0.62,
+                Math.max(zMin, Math.min(zMax, iz))
+            );
+
+            a.arc = 2.4 + rng() * 1.4;
+
+            // start from current quat (prevents jump if user spams roll)
+            a.q0.copy(quats.current[i]);
+
+            const v = clampDie(values[i] ?? 1);
+            const [rx, , rz] = eulerForValue(v);
+            const qFace = new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, 0, rz));
+            const yaw = (Math.floor(rng() * 4) * Math.PI) / 2;
+            const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+            a.qTarget.copy(qYaw.multiply(qFace));
+
+            a.rollAccum.identity();
+            a.wobbleYaw = (rng() - 0.5) * 0.55;
+            a.wobblePitch = (rng() - 0.5) * 0.55;
+
+            positions.current[i].copy(a.p0);
+            quats.current[i].copy(a.q0);
+            a.lastPos.copy(a.p0);
+        }
+    };
+
+    const roll = () => {
+        const vals = [0, 0, 0, 0, 0].map(() => 1 + Math.floor(Math.random() * 6));
+        rollToResult(vals, { chaosMs: 1150 });
+    };
+
+    const getVisualValues = () => {
+        const vals: number[] = [];
+        for (let i = 0; i < 5; i++) {
+            vals.push(clampDie(dieRefs.current[i]?.getValue?.() ?? lastEmittedValuesRef.current[i] ?? 1));
+        }
+        return vals;
+    };
+
+    const getLastEmittedValues = () => lastEmittedValuesRef.current.slice();
+    const getRollSeq = () => rollSeqRef.current;
+
+    useEffect(() => {
+        apiRef.current = {
+            roll,
+            rollToResult,
+            reset,
+            forceResult,
+            getVisualValues,
+            getLastEmittedValues,
+            getRollSeq,
+        };
+        return () => {
+            apiRef.current = null;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // temps
+    const up = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+    const tmpDelta = useMemo(() => new THREE.Vector3(), []);
+    const tmpAxis = useMemo(() => new THREE.Vector3(), []);
+    const tmpQ = useMemo(() => new THREE.Quaternion(), []);
+    const tmpPos = useMemo(() => new THREE.Vector3(), []);
+    const tmpQuat = useMemo(() => new THREE.Quaternion(), []);
+    const tmpWobble = useMemo(() => new THREE.Quaternion(), []);
+    const tmpSpin = useMemo(() => new THREE.Quaternion(), []);
+    const tmpErr = useMemo(() => new THREE.Quaternion(), []);
+    const tmpCorr = useMemo(() => new THREE.Quaternion(), []);
+
+    // NOTE: you can still tune these if you want
+    const EPS = 0.010; // ~0.57 deg, finalize threshold
+
+    const wasActiveRef = useRef(false);
+
+    useFrame((_, dt) => {
+        let anyActive = false;
+
+        for (let i = 0; i < 5; i++) {
+            // HELD dice are pinned and NEVER animated
+            if (heldDice[i]) {
+                cancelAnimForDie(i);
+                positions.current[i].copy(heldPos[i]);
+                continue;
+            }
+
+            const a = anim.current[i];
+            if (!a.active) continue;
+            anyActive = true;
+
+            a.t += dt;
+            const u = Math.min(1, a.t / a.dur);
+
+            const flightEnd = 0.55;
+
+            if (!a.finishedMotion) {
+                if (u <= flightEnd) {
+                    const uf = easeInOutCubic(u / flightEnd);
+
+                    // flight position p0->pMid with arc
+                    tmpPos.lerpVectors(a.p0, a.pMid, uf);
+                    const arc = Math.sin(Math.PI * uf) * a.arc;
+                    tmpPos.y = 0.62 + arc;
+                    positions.current[i].copy(tmpPos);
+
+                    // flight spin (purely visual)
+                    tmpAxis.set(0.35, 1, 0.18).normalize();
+                    tmpSpin.setFromAxisAngle(tmpAxis, (10 + i) * a.t * 1.9);
+                    tmpQuat.copy(a.q0).multiply(tmpSpin);
+
+                    quats.current[i].copy(tmpQuat);
+                    a.lastPos.copy(tmpPos);
+                } else {
+                    // ground roll
+                    const ug = (u - flightEnd) / (1 - flightEnd);
+                    const g = easeOutCubic(ug);
+
+                    // on first ground frame: compute correction ONCE
+                    if (!a.groundStarted) {
+                        a.groundStarted = true;
+
+                        const base = quats.current[i].clone(); // current visible quat at transition
+                        tmpErr.copy(base).invert().multiply(a.qTarget).normalize();
+
+                        const w = THREE.MathUtils.clamp(tmpErr.w, -1, 1);
+                        const angle = 2 * Math.acos(w);
+                        const s = Math.sqrt(Math.max(0, 1 - w * w));
+
+                        if (s < 1e-5 || !isFinite(angle)) {
+                            a.corrAxis.set(1, 0, 0);
+                            a.corrAngle = 0;
+                            a.hasGroundCorrection = false;
+                        } else {
+                            a.corrAxis.set(tmpErr.x / s, tmpErr.y / s, tmpErr.z / s).normalize();
+                            a.corrAngle = angle;
+                            a.hasGroundCorrection = true;
+                        }
+
+                        // Reset rolling accumulation at ground start so the correction “budget” works cleanly
+                        a.rollAccum.identity();
+                    }
+
+                    // position pMid -> p1
+                    tmpPos.lerpVectors(a.pMid, a.p1, g);
+
+                    const bounce = Math.exp(-6 * ug) * Math.abs(Math.sin(ug * Math.PI * 3)) * 0.18;
+                    tmpPos.y = 0.62 + bounce;
+                    positions.current[i].copy(tmpPos);
+
+                    // planar delta drives rolling
+                    tmpDelta.subVectors(tmpPos, a.lastPos);
+                    tmpDelta.y = 0;
+
+                    const dist = tmpDelta.length();
+                    if (dist > 1e-6) {
+                        tmpAxis.crossVectors(tmpDelta, up).normalize();
+
+                        // damp roll energy earlier so the end doesn't look like "spin then correct"
+                        const fade = 1 - Math.min(1, Math.max(0, (ug - 0.25) / 0.75));
+                        const angle = (dist / HALF) * (0.20 + 0.80 * fade);
+
+                        tmpQ.setFromAxisAngle(tmpAxis, angle);
+                        a.rollAccum.multiply(tmpQ);
+                    }
+
+                    // base orientation for ground: start from transition quat (not q0) + roll
+                    // We want continuity and to avoid a "new rule" feeling:
+                    tmpQuat.copy(quats.current[i]).multiply(a.rollAccum);
+
+                    // wobble decays
+                    const wobbleAmt = Math.exp(-5 * ug);
+                    tmpWobble.setFromEuler(new THREE.Euler(a.wobblePitch * wobbleAmt * 0.30, a.wobbleYaw * wobbleAmt * 0.30, 0));
+                    tmpQuat.multiply(tmpWobble);
+
+                    // Apply the precomputed correction gradually across the ground phase.
+                    // This prevents the "late corrective turn" look.
+                    if (a.hasGroundCorrection && a.corrAngle > 1e-4) {
+                        const start = 0.00;
+                        const end = 0.70; // finish earlier -> no end rotation
+                        const tRaw = (ug - start) / (end - start);
+                        const t = easeInOutCubic(Math.min(1, Math.max(0, tRaw)));
+
+                        tmpCorr.setFromAxisAngle(a.corrAxis, a.corrAngle * t);
+                        tmpQuat.multiply(tmpCorr);
+                    }
+
+                    quats.current[i].copy(tmpQuat);
+                    a.lastPos.copy(tmpPos);
+
+                    if (u >= 1) {
+                        // stop translation. orientation should already be basically right.
+                        positions.current[i].copy(a.p1);
+                        a.finishedMotion = true;
+                    }
+                }
+            } else {
+                // Finished translating: only tiny cleanup to exact face if needed (should be minimal now).
+                positions.current[i].copy(a.p1);
+
+                const current = quats.current[i];
+                const angleLeft = current.angleTo(a.qTarget);
+
+                if (angleLeft <= EPS) {
+                    current.copy(a.qTarget);
+                    a.active = false;
+                    a.finishedMotion = false;
+                } else {
+                    // Very gentle final convergence; should be tiny if correction budgeting worked.
+                    const maxStep = 1.5 * dt; // rad/sec, intentionally tiny
+                    const frac = angleLeft > 1e-6 ? Math.min(1, maxStep / angleLeft) : 1;
+                    current.slerp(a.qTarget, frac);
+                }
+            }
+        }
+
+        const activeNow = anyActive;
+        if (wasActiveRef.current && !activeNow) {
+            emit(lastEmittedValuesRef.current);
+        }
+        wasActiveRef.current = activeNow;
     });
 
     return (
         <>
-            <ArenaBounds
-                width={arenaWidth}
-                height={arenaHeight}
-                wallHeight={wallHeight}
-                thickness={wallThickness}
-                debugWalls={debugWalls}
-                offsetX={1.0}
-            />
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[offsetX, 0.0, 0]} receiveShadow raycast={() => null}>
+                <planeGeometry args={[arenaWidth, arenaHeight]} />
+                <meshStandardMaterial transparent opacity={0} />
+            </mesh>
 
-            {startPositions.map((pos, i) => (
+            {positions.current.map((_, i) => (
                 <Die
                     key={i}
                     ref={(h) => {
                         dieRefs.current[i] = h;
                     }}
-                    position={pos}
+                    index={i}
+                    position={positions.current[i]}
+                    quaternion={quats.current[i]}
                     isHeld={!!heldDice[i]}
-                    heldPosition={
-                        // Calculate a nice row at the bottom
-                        [
-                            (i - 2) * 1.5 + 1.0, // X: Center around offset 1.0, spacing 1.5
-                            1.2, // Y: Lift slightly
-                            arenaHeight / 2 + 1.2, // Z: On the wood frame (approx 6.2)
-                        ]
-                    }
-                    onResult={(val) => onDieResult(i, val)}
-                    onClick={() => onDieClick(i)}
-                    canClick={canInteract}
-                    physicsMaterial={diceMaterial}
                     color={diceColor}
                     showDebugNumber={showDebugNumbers}
+                    canClick={canInteract}
+                    onClick={() => onDieClick(i)}
                 />
             ))}
         </>
@@ -185,182 +571,31 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
         onDieClick,
         canInteract,
         diceColor = '#F5F5DC',
-        debugWalls = false,
         showDebugNumbers = false,
         feltAspect = 1.0,
         arenaWorldHeight = 10.0,
     } = props;
 
-    const dieRefs = useRef<Array<DieHandle | null>>([null, null, null, null, null]);
-
-    // last known values (what we emit to the engine)
-    const resultsRef = useRef<number[]>([1, 1, 1, 1, 1]);
-    // per-roll completion flags
-    const reportedRef = useRef<boolean[]>([false, false, false, false, false]);
-    // ensure we only emit once per roll
-    const emittedForSeqRef = useRef<number | null>(null);
-    // monotonic roll id
-    const rollSeqRef = useRef(0);
-    // safety timer in case a die never calls onResult
-    const settleTimer = useRef<number | null>(null);
-    // last values emitted to the parent
-    const lastEmittedValuesRef = useRef<number[]>([1, 1, 1, 1, 1]);
-
-    // used only to keep imperative handle stable if you hot-reload
+    const apiRef = useRef<DiceArenaHandle | null>(null);
     const [nonce, setNonce] = useState(0);
-
-    const arenaHeight = arenaWorldHeight;
-    const arenaWidth = arenaWorldHeight * feltAspect;
-
-    const wallHeight = 14;
-    const wallThickness = 1.9;
-
-    // ONLY used for reset/new-turn seating. We do NOT reseat on roll (held dice must never move).
-    const startPositions: Array<[number, number, number]> = useMemo(() => {
-        const halfW = arenaWidth / 2;
-        const spread = Math.max(1.7, Math.min(2.7, halfW - 1.6));
-        const offsetX = 1.0;
-        return [
-            [-spread + offsetX, 2.1, 0],
-            [-spread / 2 + offsetX, 2.1, 0],
-            [offsetX, 2.1, 0],
-            [spread / 2 + offsetX, 2.1, 0],
-            [spread + offsetX, 2.1, 0],
-        ];
-    }, [arenaWidth]);
-
-    const diceMaterial = useMemo(() => new Material('dice'), []);
-    const floorMaterial = useMemo(() => new Material('floor'), []);
-
-    const clearSettleTimer = () => {
-        if (settleTimer.current) window.clearTimeout(settleTimer.current);
-        settleTimer.current = null;
-    };
-
-    const normalize = (v: number) => Math.max(1, Math.min(6, Math.round(v)));
-
-    const emitOnceForCurrentRoll = () => {
-        const seq = rollSeqRef.current;
-        if (emittedForSeqRef.current === seq) return;
-        emittedForSeqRef.current = seq;
-
-        const vals = resultsRef.current.map(normalize);
-        lastEmittedValuesRef.current = vals;
-        onTurnComplete?.(vals);
-    };
-
-    const reset = () => {
-        resultsRef.current = [1, 1, 1, 1, 1];
-        reportedRef.current = [false, false, false, false, false];
-        emittedForSeqRef.current = null;
-        lastEmittedValuesRef.current = [1, 1, 1, 1, 1];
-
-        startPositions.forEach((p, i) => dieRefs.current[i]?.resetPosition(p[0], p[1], p[2]));
-
-        clearSettleTimer();
-        setNonce((n) => n + 1);
-    };
-
-    const roll = () => {
-        rollSeqRef.current += 1;
-        emittedForSeqRef.current = null;
-
-        reportedRef.current = [false, false, false, false, false];
-
-        for (let i = 0; i < 5; i++) {
-            const d = dieRefs.current[i];
-            if (!d) continue;
-
-            if (heldDice[i]) {
-                // IMPORTANT: Never move held dice, never call roll(), just read its current value.
-                const hv = normalize(d.getValue?.() ?? resultsRef.current[i] ?? 1);
-                resultsRef.current[i] = hv;
-                reportedRef.current[i] = true;
-            } else {
-                d.roll();
-            }
-        }
-
-        clearSettleTimer();
-        settleTimer.current = window.setTimeout(() => {
-            for (let i = 0; i < 5; i++) {
-                if (!reportedRef.current[i]) {
-                    const v = dieRefs.current[i]?.getValue?.() ?? resultsRef.current[i] ?? 1;
-                    resultsRef.current[i] = normalize(v);
-                    reportedRef.current[i] = true;
-                }
-            }
-            emitOnceForCurrentRoll();
-        }, 4200) as unknown as number;
-
-        setNonce((n) => n + 1);
-    };
-
-    const forceResult = (values: number[]) => {
-        rollSeqRef.current += 1;
-        emittedForSeqRef.current = null;
-        reportedRef.current = [true, true, true, true, true];
-
-        for (let i = 0; i < 5; i++) {
-            const d = dieRefs.current[i];
-            const target = normalize(values[i] || 6);
-            if (d) {
-                d.snapFlat(target);
-                resultsRef.current[i] = target;
-            } else {
-                resultsRef.current[i] = target;
-            }
-        }
-
-        clearSettleTimer();
-        emitOnceForCurrentRoll();
-        setNonce((n) => n + 1);
-    };
-
-    const getVisualValues = () => {
-        const vals: number[] = [];
-        for (let i = 0; i < 5; i++) {
-            const d = dieRefs.current[i];
-            const v = d?.getValue?.() ?? resultsRef.current[i] ?? 1;
-            vals.push(normalize(v));
-        }
-        return vals;
-    };
-
-    const getLastEmittedValues = () => lastEmittedValuesRef.current.slice();
-
-    const getRollSeq = () => rollSeqRef.current;
 
     useImperativeHandle(
         ref,
         () => ({
-            roll,
-            reset,
-            forceResult,
-            getVisualValues,
-            getLastEmittedValues,
-            getRollSeq,
+            roll: () => apiRef.current?.roll(),
+            rollToResult: (values, opts) => apiRef.current?.rollToResult(values, opts),
+            reset: () => apiRef.current?.reset(),
+            forceResult: (values) => apiRef.current?.forceResult(values),
+            getVisualValues: () => apiRef.current?.getVisualValues() ?? [1, 1, 1, 1, 1],
+            getLastEmittedValues: () => apiRef.current?.getLastEmittedValues() ?? [1, 1, 1, 1, 1],
+            getRollSeq: () => apiRef.current?.getRollSeq() ?? 0,
         }),
         [nonce]
     );
 
-    const handleDieResult = (idx: number, value: number) => {
-        if (heldDice[idx]) {
-            reportedRef.current[idx] = true;
-            resultsRef.current[idx] = normalize(dieRefs.current[idx]?.getValue?.() ?? resultsRef.current[idx] ?? 1);
-        } else {
-            const v = normalize(value);
-            resultsRef.current[idx] = v;
-            reportedRef.current[idx] = true;
-        }
-
-        if (reportedRef.current.every(Boolean)) {
-            clearSettleTimer();
-            emitOnceForCurrentRoll();
-        }
-    };
-
-    useEffect(() => () => clearSettleTimer(), []);
+    useEffect(() => {
+        setNonce((n) => n + 1);
+    }, [feltAspect, arenaWorldHeight]);
 
     return (
         <div className="w-full h-full relative">
@@ -373,25 +608,17 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
                 <ambientLight intensity={0.55} />
                 <directionalLight position={[10, 20, 10]} intensity={1} castShadow />
 
-                <Physics gravity={[0, -30, 0]}>
-                    <PhysicsScene
-                        arenaWidth={arenaWidth}
-                        arenaHeight={arenaHeight}
-                        wallHeight={wallHeight}
-                        wallThickness={wallThickness}
-                        debugWalls={debugWalls}
-                        diceMaterial={diceMaterial}
-                        floorMaterial={floorMaterial}
-                        startPositions={startPositions}
-                        dieRefs={dieRefs}
-                        heldDice={heldDice}
-                        onDieClick={onDieClick}
-                        canInteract={canInteract}
-                        diceColor={diceColor}
-                        showDebugNumbers={showDebugNumbers}
-                        onDieResult={handleDieResult}
-                    />
-                </Physics>
+                <AnimatedDiceLayer
+                    heldDice={heldDice}
+                    canInteract={canInteract}
+                    onDieClick={onDieClick}
+                    diceColor={diceColor}
+                    showDebugNumbers={showDebugNumbers}
+                    feltAspect={feltAspect}
+                    arenaWorldHeight={arenaWorldHeight}
+                    onTurnComplete={onTurnComplete}
+                    apiRef={apiRef}
+                />
             </Canvas>
         </div>
     );
