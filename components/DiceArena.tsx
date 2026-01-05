@@ -1,4 +1,4 @@
-// components/DiceArena.tsx
+﻿// components/DiceArena.tsx
 'use client';
 
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
@@ -31,24 +31,27 @@ interface DiceArenaProps {
 const DIE_SIZE = 1.11;
 const HALF = DIE_SIZE / 2;
 
+// --- TUNING CONSTANTS for START of roll ---
+const FLIGHT_SPIN_MIN = 5.0;  // rad/s
+const FLIGHT_SPIN_MAX = 12.0;
+const ARC_MIN = 1.5;          // peak height
+const ARC_MAX = 2.2;
+const IMPACT_OFFSET_MIN = 0.4; // how far from center it lands
+const IMPACT_OFFSET_MAX = 1.0;
+const LAUNCH_SPREAD_FACTOR = 0.12; // fraction of arena width
+
 const clampDie = (v: number) => Math.max(1, Math.min(6, Math.round(v)));
 
 function eulerForValue(value: number): [number, number, number] {
+    // ... (keep existing helper functions: eulerForValue, mulberry32, easeInOutCubic, easeOutCubic) ...
     switch (value) {
-        case 1:
-            return [0, 0, 0];
-        case 6:
-            return [Math.PI, 0, 0];
-        case 2:
-            return [-Math.PI / 2, 0, 0];
-        case 5:
-            return [Math.PI / 2, 0, 0];
-        case 3:
-            return [0, 0, Math.PI / 2];
-        case 4:
-            return [0, 0, -Math.PI / 2];
-        default:
-            return [0, 0, 0];
+        case 1: return [0, 0, 0];
+        case 6: return [Math.PI, 0, 0];
+        case 2: return [-Math.PI / 2, 0, 0];
+        case 5: return [Math.PI / 2, 0, 0];
+        case 3: return [0, 0, Math.PI / 2];
+        case 4: return [0, 0, -Math.PI / 2];
+        default: return [0, 0, 0];
     }
 }
 
@@ -142,8 +145,13 @@ type DieAnim = {
     wobbleYaw: number;
     wobblePitch: number;
 
+    // NEW: stable flight spin
+    flightAxis: THREE.Vector3;
+    flightSpeed: number;
+
     // NEW: correction computed once at ground start
     groundStarted: boolean;
+    groundBaseQuat: THREE.Quaternion; // Add this
     hasGroundCorrection: boolean;
     corrAxis: THREE.Vector3;
     corrAngle: number;
@@ -201,7 +209,11 @@ function AnimatedDiceLayer({
             wobbleYaw: 0,
             wobblePitch: 0,
 
+            flightAxis: new THREE.Vector3(1, 0, 0),
+            flightSpeed: 10,
+
             groundStarted: false,
+            groundBaseQuat: new THREE.Quaternion(), // Initialize this
             hasGroundCorrection: false,
             corrAxis: new THREE.Vector3(1, 0, 0),
             corrAngle: 0,
@@ -265,7 +277,8 @@ function AnimatedDiceLayer({
 
         const launchZ = arenaHeight * 0.36;
         const launchX = offsetX;
-        const launchSpread = Math.min(2.4, arenaWidth * 0.2);
+        // Tighter launch spread
+        const launchSpread = Math.min(2.0, arenaWidth * LAUNCH_SPREAD_FACTOR);
 
         const marginX = 1.35;
         const marginZ = 1.45;
@@ -309,7 +322,7 @@ function AnimatedDiceLayer({
 
             a.p1.copy(land[i]);
 
-            const impactOffset = 1.0 + rng() * 1.0;
+            const impactOffset = IMPACT_OFFSET_MIN + rng() * (IMPACT_OFFSET_MAX - IMPACT_OFFSET_MIN);
             const theta = rng() * Math.PI * 2;
             const ix = a.p1.x + Math.cos(theta) * impactOffset;
             const iz = a.p1.z + Math.sin(theta) * impactOffset;
@@ -319,9 +332,9 @@ function AnimatedDiceLayer({
                 Math.max(zMin, Math.min(zMax, iz))
             );
 
-            a.arc = 2.4 + rng() * 1.4;
+            a.arc = ARC_MIN + rng() * (ARC_MAX - ARC_MIN);
 
-            // start from current quat (prevents jump if user spams roll)
+            // start from current quat
             a.q0.copy(quats.current[i]);
 
             const v = clampDie(values[i] ?? 1);
@@ -334,6 +347,10 @@ function AnimatedDiceLayer({
             a.rollAccum.identity();
             a.wobbleYaw = (rng() - 0.5) * 0.55;
             a.wobblePitch = (rng() - 0.5) * 0.55;
+
+            // Randomize flight spin per die, so they don't look cloned
+            a.flightAxis.set(rng() - 0.5, rng() - 0.5, rng() - 0.5).normalize();
+            a.flightSpeed = FLIGHT_SPIN_MIN + rng() * (FLIGHT_SPIN_MAX - FLIGHT_SPIN_MIN);
 
             positions.current[i].copy(a.p0);
             quats.current[i].copy(a.q0);
@@ -420,9 +437,14 @@ function AnimatedDiceLayer({
                     tmpPos.y = 0.62 + arc;
                     positions.current[i].copy(tmpPos);
 
-                    // flight spin (purely visual)
-                    tmpAxis.set(0.35, 1, 0.18).normalize();
-                    tmpSpin.setFromAxisAngle(tmpAxis, (10 + i) * a.t * 1.9);
+                    // flight spin (stable axis, constant speed)
+                    // "Ramp" is built-in because 'a.t' grows.
+                    // For a curve, we could do (a.t + 0.5*a.t*a.t) or simpler: just linear is stable.
+                    // User asked for "start lower, peak mid-roll".
+                    // Let's try a slight easing on the rotation:
+                    const spinT = a.t * a.flightSpeed; // Linear for now to ensure stability
+
+                    tmpSpin.setFromAxisAngle(a.flightAxis, spinT);
                     tmpQuat.copy(a.q0).multiply(tmpSpin);
 
                     quats.current[i].copy(tmpQuat);
@@ -432,11 +454,18 @@ function AnimatedDiceLayer({
                     const ug = (u - flightEnd) / (1 - flightEnd);
                     const g = easeOutCubic(ug);
 
-                    // on first ground frame: compute correction ONCE
+                    // on first ground frame...
                     if (!a.groundStarted) {
                         a.groundStarted = true;
 
-                        const base = quats.current[i].clone(); // current visible quat at transition
+
+                        // FIX: Capture the Base Orientation ONCE.
+                        // Do NOT read quats.current[i] in the update loop anymore.
+                        // At this exact moment (first ground frame), quats.current holds the FINAL flight frame orientation.
+                        a.groundBaseQuat.copy(quats.current[i]).normalize();
+
+                        // We compute correction relative to this base
+                        const base = a.groundBaseQuat;
                         tmpErr.copy(base).invert().multiply(a.qTarget).normalize();
 
                         const w = THREE.MathUtils.clamp(tmpErr.w, -1, 1);
@@ -453,7 +482,7 @@ function AnimatedDiceLayer({
                             a.hasGroundCorrection = true;
                         }
 
-                        // Reset rolling accumulation at ground start so the correction “budget” works cleanly
+                        // Reset rolling accumulation at ground start
                         a.rollAccum.identity();
                     }
 
@@ -464,36 +493,43 @@ function AnimatedDiceLayer({
                     tmpPos.y = 0.62 + bounce;
                     positions.current[i].copy(tmpPos);
 
-                    // planar delta drives rolling
+                    // linear translation drives the roll accumulation
                     tmpDelta.subVectors(tmpPos, a.lastPos);
                     tmpDelta.y = 0;
 
                     const dist = tmpDelta.length();
-                    if (dist > 1e-6) {
+                    // Clamp max frame distance to avoid huge jumps if lag spikes
+                    const safeDist = Math.min(dist, 0.4);
+
+                    if (safeDist > 1e-6) {
                         tmpAxis.crossVectors(tmpDelta, up).normalize();
 
-                        // damp roll energy earlier so the end doesn't look like "spin then correct"
+                        // damp roll energy earlier 
                         const fade = 1 - Math.min(1, Math.max(0, (ug - 0.25) / 0.75));
-                        const angle = (dist / HALF) * (0.20 + 0.80 * fade);
+                        // Angle from distance. 
+                        let angle = (safeDist / HALF) * (0.20 + 0.80 * fade);
+
+                        // Soft clamp per frame (continuity)
+                        // angle = MAX_ANGLE * tanh(angle / MAX_ANGLE)
+                        const MAX_STEP = 0.35;
+                        angle = MAX_STEP * Math.tanh(angle / MAX_STEP);
 
                         tmpQ.setFromAxisAngle(tmpAxis, angle);
-                        a.rollAccum.multiply(tmpQ);
+                        a.rollAccum.multiply(tmpQ); // Integrate into expected roll
                     }
 
-                    // base orientation for ground: start from transition quat (not q0) + roll
-                    // We want continuity and to avoid a "new rule" feeling:
-                    tmpQuat.copy(quats.current[i]).multiply(a.rollAccum);
+                    // RECONSTRUCT orientation from stable base (FIX for feedback loop)
+                    // quat = groundBase * roll * wobble * correction
+                    tmpQuat.copy(a.groundBaseQuat).multiply(a.rollAccum);
 
                     // wobble decays
                     const wobbleAmt = Math.exp(-5 * ug);
                     tmpWobble.setFromEuler(new THREE.Euler(a.wobblePitch * wobbleAmt * 0.30, a.wobbleYaw * wobbleAmt * 0.30, 0));
                     tmpQuat.multiply(tmpWobble);
 
-                    // Apply the precomputed correction gradually across the ground phase.
-                    // This prevents the "late corrective turn" look.
                     if (a.hasGroundCorrection && a.corrAngle > 1e-4) {
-                        const start = 0.00;
-                        const end = 0.70; // finish earlier -> no end rotation
+                        const start = 0.10; // Ramp in gently (no kick at ug=0)
+                        const end = 0.75;
                         const tRaw = (ug - start) / (end - start);
                         const t = easeInOutCubic(Math.min(1, Math.max(0, tRaw)));
 
@@ -501,7 +537,7 @@ function AnimatedDiceLayer({
                         tmpQuat.multiply(tmpCorr);
                     }
 
-                    quats.current[i].copy(tmpQuat);
+                    quats.current[i].copy(tmpQuat).normalize();
                     a.lastPos.copy(tmpPos);
 
                     if (u >= 1) {

@@ -65,6 +65,13 @@ const INSET_Y_BASE = 135;
 
 const normalizeDie = (v: number) => Math.max(1, Math.min(6, Math.round(v)));
 
+// Dynamic imports for export tools to avoid SSR issues
+const importExportTools = async () => {
+  const htmlToImage = await import('html-to-image');
+  const jsPDF = (await import('jspdf')).default;
+  return { htmlToImage, jsPDF };
+};
+
 export default function Page() {
   const isDev = process.env.NODE_ENV === 'development';
 
@@ -262,7 +269,10 @@ export default function Page() {
     setIsRolling(false);
     setMobileScorecardOpen(false);
 
-    if (s.isGameOver) setPhase('GAME_OVER');
+    if (s.isGameOver) {
+      setPhase('GAME_OVER');
+      setMobileScorecardOpen(true);
+    }
   };
 
   useEffect(() => {
@@ -339,8 +349,46 @@ export default function Page() {
   }, []);
 
   const bgRef = useRef<HTMLDivElement | null>(null);
+  const scorecardRef = useRef<HTMLDivElement>(null); // For export capture
+
   const [feltRect, setFeltRect] = useState<Rect | null>(null);
   const [feltAspect, setFeltAspect] = useState(1.0);
+
+  const handleDownload = async () => {
+    if (!scorecardRef.current) return;
+    try {
+      const { htmlToImage, jsPDF } = await importExportTools();
+      // Filter out elements with helper-exclude-pdf class
+      const filter = (node: HTMLElement) => {
+        return !node.className || !node.className.includes?.('helper-exclude-pdf');
+      };
+
+      const dataUrl = await htmlToImage.toPng(scorecardRef.current, {
+        quality: 0.95,
+        backgroundColor: '#f4f4f5',
+        filter: filter as any
+      });
+
+      const d = new Date();
+      const YYYY = d.getFullYear();
+      const MM = String(d.getMonth() + 1).padStart(2, '0');
+      const DD = String(d.getDate()).padStart(2, '0');
+      const HH = String(d.getHours()).padStart(2, '0');
+      const MIN = String(d.getMinutes()).padStart(2, '0');
+      const filename = `sarzee-scorecard-${YYYY}${MM}${DD}-${HH}${MIN}`;
+
+      const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`${filename}.pdf`);
+    } catch (e) {
+      console.error('Export failed', e);
+      alert('Failed to generate scorecard PDF.');
+    }
+  };
 
   const computeFeltRect = useCallback(() => {
     const el = bgRef.current;
@@ -450,29 +498,9 @@ export default function Page() {
   }
 
   if (phase === 'GAME_OVER') {
-    return (
-      <div className="w-screen h-screen overflow-hidden bg-black">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: 'url(/textures/board_texture.jpg)',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
-        />
-        <div className="relative z-10 w-full h-full flex items-center justify-center">
-          <div className="bg-slate-900/80 backdrop-blur-xl px-14 py-10 rounded-2xl border border-white/10 shadow-2xl text-center">
-            <h1 className="text-5xl font-black mb-6 text-white">Game Over</h1>
-            <button
-              onClick={resetAll}
-              className="bg-emerald-600 hover:bg-emerald-500 px-8 py-3 rounded text-xl font-bold text-white"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    // We want the game board + scorecard to remain visible BEHIND the modal.
+    // So we DON'T return early here. We let the main render happen, then overlay the modal.
+    // We'll handle this by falling through to the main return, and conditionally rendering the modal.
   }
 
   if (!gameState) return null;
@@ -511,11 +539,12 @@ export default function Page() {
             onDieClick={handleDieClick}
             canInteract={canInteractDice}
             feltAspect={feltAspect}
-            debugWalls={false}
             showDebugNumbers={isDev && showDieNumbers}
           />
         </div>
       )}
+
+      {/* GAME OVER MODAL REMOVED - integrated into scorecard header */}
 
       <div className="absolute top-4 bottom-4 w-[680px] max-w-[60vw] flex flex-col gap-4 z-20" style={{ right: railRightPx }}>
         <div
@@ -527,17 +556,64 @@ export default function Page() {
           }}
         >
           <div className="origin-top-right scale-[0.94] pr-2">
-            <MultiPlayerScorecard
-              playerNames={names}
-              scorecards={scorecards}
-              yahtzeeBonuses={yahtzeeBonuses}
-              totals={totals}
-              activePlayerIndex={activePlayer}
-              potentialScores={potentialScores}
-              canSelectCategory={canSelectCategory}
-              onSelectCategory={handleCategorySelect}
-              mustPick={gameState.rollsLeft === 0}
-            />
+            <div ref={scorecardRef} className="bg-transparent flex flex-col gap-4">
+              {phase === 'GAME_OVER' && (
+                <div className="bg-slate-900/90 text-white p-4 rounded-xl border border-white/20 shadow-xl backdrop-blur-md">
+                  {/* Winner Text - Included in PDF */}
+                  <div className="text-center mb-4 border-b border-white/10 pb-4">
+                    <h2 className="text-2xl font-black mb-1">FINAL RESULTS</h2>
+                    <div className="text-lg opacity-90">
+                      {playerCount === 1 ? (
+                        <div>You scored <span className="font-bold text-emerald-400">{totals[0]}</span> points!</div>
+                      ) : (
+                        <div>
+                          {totals[0] > totals[1] ? (
+                            <span className="text-emerald-400 font-bold">Player 1 Wins!</span>
+                          ) : totals[1] > totals[0] ? (
+                            <span className="text-amber-400 font-bold">Player 2 Wins!</span>
+                          ) : (
+                            <span className="text-white font-bold">It's a tie!</span>
+                          )}
+                          <div className="text-sm opacity-70 mt-1">
+                            P1: {totals[0]} &nbsp;•&nbsp; P2: {totals[1]}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Controls - Excluded from PDF via class */}
+                  <div className="flex items-center justify-between helper-exclude-pdf">
+                    <button
+                      onClick={resetAll}
+                      className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded shadow-lg flex items-center gap-2 transition-transform active:scale-95 text-sm"
+                    >
+                      <span>↺</span> New Game
+                    </button>
+
+                    <button
+                      onClick={() => handleDownload()}
+                      className="bg-slate-700 hover:bg-slate-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors flex items-center gap-2 text-sm"
+                      title="Download PDF"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                      <span>PDF</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+              <MultiPlayerScorecard
+                playerNames={names}
+                scorecards={scorecards}
+                yahtzeeBonuses={yahtzeeBonuses}
+                totals={totals}
+                activePlayerIndex={activePlayer}
+                potentialScores={potentialScores}
+                canSelectCategory={canSelectCategory}
+                onSelectCategory={handleCategorySelect}
+                mustPick={gameState.rollsLeft === 0}
+              />
+            </div>
           </div>
         </div>
 
@@ -581,7 +657,52 @@ export default function Page() {
               ✕
             </button>
 
-            <div className="scale-75 origin-center">
+            <div className="scale-75 origin-center bg-transparent flex flex-col gap-4">
+              {phase === 'GAME_OVER' && (
+                <div className="bg-slate-900/90 text-white p-4 rounded-xl border border-white/20 shadow-xl backdrop-blur-md mb-2">
+                  {/* Winner Text - Included in PDF */}
+                  <div className="text-center mb-4 border-b border-white/10 pb-4">
+                    <h2 className="text-2xl font-black mb-1">FINAL RESULTS</h2>
+                    <div className="text-lg opacity-90">
+                      {playerCount === 1 ? (
+                        <div>You scored <span className="font-bold text-emerald-400">{totals[0]}</span> points!</div>
+                      ) : (
+                        <div>
+                          {totals[0] > totals[1] ? (
+                            <span className="text-emerald-400 font-bold">Player 1 Wins!</span>
+                          ) : totals[1] > totals[0] ? (
+                            <span className="text-amber-400 font-bold">Player 2 Wins!</span>
+                          ) : (
+                            <span className="text-white font-bold">It's a tie!</span>
+                          )}
+                          <div className="text-sm opacity-70 mt-1">
+                            P1: {totals[0]} &nbsp;•&nbsp; P2: {totals[1]}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Controls - Excluded from PDF via class */}
+                  <div className="flex items-center justify-between helper-exclude-pdf">
+                    <button
+                      onClick={resetAll}
+                      className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded shadow-lg flex items-center gap-2 transition-transform active:scale-95 text-sm"
+                    >
+                      <span>↺</span> New Game
+                    </button>
+
+                    <button
+                      onClick={() => handleDownload()}
+                      className="bg-slate-700 hover:bg-slate-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors flex items-center gap-2 text-sm"
+                      title="Download PDF"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                      <span>PDF</span>
+                    </button>
+                  </div>
+                </div>
+              )}
               <MultiPlayerScorecard
                 playerNames={names}
                 scorecards={scorecards}
@@ -598,80 +719,105 @@ export default function Page() {
         </div>
       )}
 
-      {showCelebration && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <SarzeeCelebration onDismiss={() => setShowCelebration(false)} />
-        </div>
-      )}
+      {
+        showCelebration && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <SarzeeCelebration onDismiss={() => setShowCelebration(false)} />
+          </div>
+        )
+      }
 
-      {isDev && (
-        <>
-          <button
-            onClick={forceSarzee}
-            className="fixed bottom-2 left-2 z-[999] bg-red-600/50 hover:bg-red-600 text-white text-[10px] px-2 py-1 rounded font-mono"
-          >
-            FORCE SARZEE (S)
-          </button>
-
-          <button
-            onClick={() => setDevPanelOpen((s) => !s)}
-            className="fixed bottom-2 left-[140px] z-[999] bg-slate-800/60 hover:bg-slate-800 text-white text-[10px] px-2 py-1 rounded font-mono"
-          >
-            DEBUG (D)
-          </button>
-        </>
-      )}
-
-      {isDev && devPanelOpen && (
-        <div className="fixed left-2 bottom-12 z-[999] w-[360px] max-w-[92vw] rounded-xl border border-white/10 bg-black/70 backdrop-blur-md p-3 text-white shadow-2xl">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="font-mono text-xs opacity-80">DEV DEBUG</div>
-              <div className="font-mono text-[11px] opacity-70">D = toggle • S = force Sarzee • C = celebration</div>
-            </div>
-            <button className="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/15" onClick={() => setDevPanelOpen(false)}>
-              ✕
+      {
+        isDev && (
+          <>
+            <button
+              onClick={forceSarzee}
+              className="fixed bottom-2 left-2 z-[999] bg-red-600/50 hover:bg-red-600 text-white text-[10px] px-2 py-1 rounded font-mono"
+            >
+              FORCE SARZEE (S)
             </button>
-          </div>
 
-          <label className="mt-3 flex items-center gap-2 text-xs font-mono">
-            <input type="checkbox" checked={showDieNumbers} onChange={(e) => setShowDieNumbers(e.target.checked)} />
-            Show numbers on dice
-          </label>
+            <button
+              onClick={() => setDevPanelOpen((s) => !s)}
+              className="fixed bottom-2 left-[140px] z-[999] bg-slate-800/60 hover:bg-slate-800 text-white text-[10px] px-2 py-1 rounded font-mono"
+            >
+              DEBUG (D)
+            </button>
+          </>
+        )
+      }
 
-          <div className="mt-3 font-mono text-xs">
-            <div className="opacity-70">rollSeq: {arenaRollSeq}</div>
-            <div className="mt-2 grid gap-2">
+      {
+        isDev && devPanelOpen && (
+          <div className="fixed left-2 bottom-12 z-[999] w-[360px] max-w-[92vw] rounded-xl border border-white/10 bg-black/70 backdrop-blur-md p-3 text-white shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="opacity-70">Arena visual (quaternion)</div>
-                <div className="text-sm">[{arenaVisualValues.join(', ')}]</div>
+                <div className="font-mono text-xs opacity-80">DEV DEBUG</div>
+                <div className="font-mono text-[11px] opacity-70">D = toggle • S = force Sarzee • C = celebration</div>
               </div>
-              <div>
-                <div className="opacity-70">Arena emitted (animation done)</div>
-                <div className="text-sm">[{arenaEmittedValues.join(', ')}]</div>
-              </div>
-              <div>
-                <div className="opacity-70">Engine stored (state.diceValues)</div>
-                <div className="text-sm">[{engineDiceValues.join(', ')}]</div>
-              </div>
-              <div>
-                <div className="opacity-70">Engine Yahtzee bonus</div>
-                <div className="text-sm">{gameState.yahtzeeBonus}</div>
-              </div>
+              <button className="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/15" onClick={() => setDevPanelOpen(false)}>
+                ✕
+              </button>
             </div>
 
-            {arenaEmittedValues.length === 5 && engineDiceValues.length === 5 && (
-              <div className="mt-3">
-                {arenaEmittedValues.join(',') === engineDiceValues.join(',') ? (
-                  <div className="text-emerald-300">Engine matches emitted</div>
-                ) : (
-                  <div className="text-red-300">Mismatch: engine != emitted</div>
-                )}
+            <label className="mt-3 flex items-center gap-2 text-xs font-mono">
+              <input type="checkbox" checked={showDieNumbers} onChange={(e) => setShowDieNumbers(e.target.checked)} />
+              Show numbers on dice
+            </label>
+
+            <div className="mt-3 font-mono text-xs">
+              <div className="opacity-70">rollSeq: {arenaRollSeq}</div>
+              <div className="mt-2 grid gap-2">
+                <div>
+                  <div className="opacity-70">Arena visual (quaternion)</div>
+                  <div className="text-sm">[{arenaVisualValues.join(', ')}]</div>
+                </div>
+                <div>
+                  <div className="opacity-70">Arena emitted (animation done)</div>
+                  <div className="text-sm">[{arenaEmittedValues.join(', ')}]</div>
+                </div>
+                <div>
+                  <div className="opacity-70">Engine stored (state.diceValues)</div>
+                  <div className="text-sm">[{engineDiceValues.join(', ')}]</div>
+                </div>
+                <div>
+                  <div className="opacity-70">Engine Yahtzee bonus</div>
+                  <div className="text-sm">{gameState.yahtzeeBonus}</div>
+                </div>
               </div>
-            )}
+
+              {arenaEmittedValues.length === 5 && engineDiceValues.length === 5 && (
+                <div className="mt-3">
+                  {arenaEmittedValues.join(',') === engineDiceValues.join(',') ? (
+                    <div className="text-emerald-300">Engine matches emitted</div>
+                  ) : (
+                    <div className="text-red-300">Mismatch: engine != emitted</div>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <button
+                  onClick={() => {
+                    enginesRef.current.forEach((e, i) => e.debugSetNearEndgame(12345 + i));
+                    // Refresh UI to match current player's new state
+                    const engine = enginesRef.current[activePlayer];
+                    const s = engine.getGameState();
+                    setGameState(s);
+                    setPotentialScores({} as any);
+                    setIsRolling(false);
+                    arenaRef.current?.reset();
+                    setDevPanelOpen(false); // Close panel to see result
+                  }}
+                  className="w-full bg-amber-600/80 hover:bg-amber-600 py-2 rounded text-xs font-bold uppercase tracking-wider"
+                >
+                  Jump to Final Turn
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }

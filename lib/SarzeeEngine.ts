@@ -245,4 +245,76 @@ export class SarzeeEngine {
     public _forceDice(dice: DieValue[]) {
         this.state.diceValues = dice;
     }
+
+    /**
+     * DEBUG ONLY: Sets the game state to "near endgame" where only one category remains unscored.
+     * Uses a deterministic seed so results are reproducible.
+     */
+    public debugSetNearEndgame(seed: number = 12345) {
+        // Simple LCG RNG for deterministic results without external deps
+        let currentSeed = seed;
+        const nextRand = () => {
+            currentSeed = (currentSeed * 9301 + 49297) % 233280;
+            return currentSeed / 233280;
+        };
+        const range = (min: number, max: number) => Math.floor(nextRand() * (max - min + 1)) + min;
+        const pickOne = <T>(arr: T[]): T => arr[range(0, arr.length - 1)];
+
+        // Reset state mechanics
+        this.state.currentTurn = 13; // 13th turn is the last one
+        this.state.rollsLeft = 3;
+        this.state.heldDice = [false, false, false, false, false];
+        this.state.diceValues = [1, 1, 1, 1, 1];
+        this.state.totalScore = 0;
+        this.state.yahtzeeBonus = 0;
+        this.state.isGameOver = false;
+
+        // Pick one category to remain empty
+        const allCats = Object.values(ScoreCategory);
+        const emptyCat = pickOne(allCats);
+
+        // Fill others
+        for (const cat of allCats) {
+            if (cat === emptyCat) {
+                this.state.scorecard[cat] = null;
+                continue;
+            }
+
+            let score = 0;
+            switch (cat) {
+                case ScoreCategory.Ones: score = range(0, 5) * 1; break;
+                case ScoreCategory.Twos: score = range(0, 5) * 2; break;
+                case ScoreCategory.Threes: score = range(0, 5) * 3; break;
+                case ScoreCategory.Fours: score = range(0, 5) * 4; break;
+                case ScoreCategory.Fives: score = range(0, 5) * 5; break;
+                case ScoreCategory.Sixes: score = range(0, 5) * 6; break;
+                case ScoreCategory.ThreeOfAKind: score = range(15, 30); break;
+                case ScoreCategory.FourOfAKind: score = range(10, 30); break;
+                case ScoreCategory.FullHouse: score = range(0, 1) ? 25 : 0; break;
+                case ScoreCategory.SmallStraight: score = range(0, 1) ? 30 : 0; break;
+                case ScoreCategory.LargeStraight: score = range(0, 1) ? 40 : 0; break;
+                case ScoreCategory.Yahtzee: score = range(0, 1) ? 50 : 0; break;
+                case ScoreCategory.Chance: score = range(5, 30); break;
+            }
+            this.state.scorecard[cat] = score;
+            this.state.totalScore += score;
+        }
+
+        // Recalculate Upper Section Bonus
+        // (Standard rule: if sum of Ones..Sixes >= 63, add 35)
+        let upperSum = 0;
+        const uppers = [
+            ScoreCategory.Ones, ScoreCategory.Twos, ScoreCategory.Threes,
+            ScoreCategory.Fours, ScoreCategory.Fives, ScoreCategory.Sixes
+        ];
+
+        for (const c of uppers) {
+            const val = this.state.scorecard[c];
+            if (val !== null) upperSum += val;
+        }
+
+        if (upperSum >= 63) {
+            this.state.totalScore += 35;
+        }
+    }
 }
