@@ -33,7 +33,7 @@ const HALF = DIE_SIZE / 2;
 
 // --- TUNING CONSTANTS for START of roll ---
 const FLIGHT_SPIN_MIN = 5.0;  // rad/s
-const FLIGHT_SPIN_MAX = 12.0;
+const FLIGHT_SPIN_MAX = 24.0;
 const ARC_MIN = 1.5;          // peak height
 const ARC_MAX = 2.2;
 const IMPACT_OFFSET_MIN = 0.4; // how far from center it lands
@@ -155,6 +155,19 @@ type DieAnim = {
     hasGroundCorrection: boolean;
     corrAxis: THREE.Vector3;
     corrAngle: number;
+
+    // NEW: settle unwrapping
+    spinAxisGround: THREE.Vector3; // Fixed axis for ground roll
+    settleInitialized: boolean;
+    settleTime: number;
+    settleDuration: number;
+    settleStartQuat: THREE.Quaternion;
+    settleAxis: THREE.Vector3;
+    settleTotalAngle: number;
+
+    // NEW: Monotonic integration
+    currentOmega: number;
+    accumulatedTheta: number;
 };
 
 function AnimatedDiceLayer({
@@ -217,6 +230,17 @@ function AnimatedDiceLayer({
             hasGroundCorrection: false,
             corrAxis: new THREE.Vector3(1, 0, 0),
             corrAngle: 0,
+
+            spinAxisGround: new THREE.Vector3(1, 0, 0),
+            settleInitialized: false,
+            settleTime: 0,
+            settleDuration: 0.25,
+            settleStartQuat: new THREE.Quaternion(),
+            settleAxis: new THREE.Vector3(0, 1, 0),
+            settleTotalAngle: 0,
+
+            currentOmega: 0,
+            accumulatedTheta: 0,
         }))
     );
 
@@ -240,6 +264,10 @@ function AnimatedDiceLayer({
         a.hasGroundCorrection = false;
         a.corrAngle = 0;
         a.corrAxis.set(1, 0, 0);
+        a.settleInitialized = false;
+        a.spinAxisGround.set(1, 0, 0);
+        a.currentOmega = 0;
+        a.accumulatedTheta = 0;
     };
 
     const reset = () => {
@@ -482,6 +510,15 @@ function AnimatedDiceLayer({
                             a.hasGroundCorrection = true;
                         }
 
+                        // Capture fixed spin axis at start
+                        // Perpendicular to travel direction (pMid -> p1)
+                        tmpDelta.subVectors(a.p1, a.pMid).normalize();
+                        a.spinAxisGround.crossVectors(tmpDelta, up).normalize();
+
+                        // Initialize Ground Spin Speed (boosted from flight)
+                        a.currentOmega = a.flightSpeed * 1.35;
+                        a.accumulatedTheta = 0;
+
                         // Reset rolling accumulation at ground start
                         a.rollAccum.identity();
                     }
@@ -493,48 +530,44 @@ function AnimatedDiceLayer({
                     tmpPos.y = 0.62 + bounce;
                     positions.current[i].copy(tmpPos);
 
-                    // linear translation drives the roll accumulation
-                    tmpDelta.subVectors(tmpPos, a.lastPos);
-                    tmpDelta.y = 0;
+                    // CONTINUOUS SPIN via Omega Integration
+                    // Piecewise damping: Low damping early (chaos), High damping late (brake)
+                    const damping = ug < 0.80 ? 0.5 : 8.0;
+                    a.currentOmega *= Math.exp(-damping * dt);
 
-                    const dist = tmpDelta.length();
-                    // Clamp max frame distance to avoid huge jumps if lag spikes
-                    const safeDist = Math.min(dist, 0.4);
+                    // Integrate
+                    a.accumulatedTheta += a.currentOmega * dt;
 
-                    if (safeDist > 1e-6) {
-                        tmpAxis.crossVectors(tmpDelta, up).normalize();
+                    // Apply Roll (Fixed Axis)
+                    tmpQ.setFromAxisAngle(a.spinAxisGround, a.accumulatedTheta);
+                    a.rollAccum.copy(tmpQ);
 
-                        // damp roll energy earlier 
-                        const fade = 1 - Math.min(1, Math.max(0, (ug - 0.25) / 0.75));
-                        // Angle from distance. 
-                        let angle = (safeDist / HALF) * (0.20 + 0.80 * fade);
-
-                        // Soft clamp per frame (continuity)
-                        // angle = MAX_ANGLE * tanh(angle / MAX_ANGLE)
-                        const MAX_STEP = 0.35;
-                        angle = MAX_STEP * Math.tanh(angle / MAX_STEP);
-
-                        tmpQ.setFromAxisAngle(tmpAxis, angle);
-                        a.rollAccum.multiply(tmpQ); // Integrate into expected roll
-                    }
-
-                    // RECONSTRUCT orientation from stable base (FIX for feedback loop)
-                    // quat = groundBase * roll * wobble * correction
+                    // RECONSTRUCT orientation
+                    // quat = groundBase * roll * wobble
                     tmpQuat.copy(a.groundBaseQuat).multiply(a.rollAccum);
 
-                    // wobble decays
-                    const wobbleAmt = Math.exp(-5 * ug);
-                    tmpWobble.setFromEuler(new THREE.Euler(a.wobblePitch * wobbleAmt * 0.30, a.wobbleYaw * wobbleAmt * 0.30, 0));
+                    // wobble decays (smooth "falling into place")
+                    // Decays to 0 over final 40% (ug > 0.6)
+                    let wobbleEnv = 1.0;
+                    if (ug > 0.6) {
+                        const wProg = (ug - 0.6) / 0.4;
+                        wobbleEnv = 1 - easeInOutCubic(wProg);
+                    }
+                    // Initial ramp-in still needed? Yes, fast ramp in.
+                    const rampIn = Math.min(1, ug * 10);
+                    const wobbleAmt = rampIn * wobbleEnv * Math.exp(-1.5 * ug);
+
+                    tmpWobble.setFromEuler(new THREE.Euler(a.wobblePitch * wobbleAmt * 0.5, a.wobbleYaw * wobbleAmt * 0.5, 0));
                     tmpQuat.multiply(tmpWobble);
 
-                    if (a.hasGroundCorrection && a.corrAngle > 1e-4) {
-                        const start = 0.10; // Ramp in gently (no kick at ug=0)
-                        const end = 0.75;
-                        const tRaw = (ug - start) / (end - start);
-                        const t = easeInOutCubic(Math.min(1, Math.max(0, tRaw)));
-
-                        tmpCorr.setFromAxisAngle(a.corrAxis, a.corrAngle * t);
-                        tmpQuat.multiply(tmpCorr);
+                    // CONTINUOUS GUIDANCE: "Magnet"
+                    // Gently pull towards target orientation during the ground roll.
+                    // This ensures that when Settle starts, we are already partially aligned (~25%),
+                    // preventing a sudden reversal or snap.
+                    if (ug > 0.2) {
+                        const guideProg = (ug - 0.2) / 0.8;
+                        const guideBlend = easeInOutCubic(guideProg) * 0.25; // Ramp to 25%
+                        tmpQuat.slerp(a.qTarget, guideBlend);
                     }
 
                     quats.current[i].copy(tmpQuat).normalize();
@@ -547,21 +580,54 @@ function AnimatedDiceLayer({
                     }
                 }
             } else {
-                // Finished translating: only tiny cleanup to exact face if needed (should be minimal now).
-                positions.current[i].copy(a.p1);
+                // Settle Phase: Monotonic Angular Decay
+                // We keep spinning (decaying omega) and slowly blend to target.
 
-                const current = quats.current[i];
-                const angleLeft = current.angleTo(a.qTarget);
+                if (!a.settleInitialized) {
+                    a.settleInitialized = true;
+                    a.settleTime = 0;
+                    a.settleDuration = 0.60; // Longer settle to allow spin to die down naturally
+                    // We DO NOT reset rollAccum; we continue integrating it.
+                }
 
-                if (angleLeft <= EPS) {
-                    current.copy(a.qTarget);
+                a.settleTime += dt;
+                const u = Math.min(1, a.settleTime / a.settleDuration);
+
+                // 1. Decay Omega monotonically
+                // Decay factor: e.g. -8.0 reduces speed significantly over 0.5s
+                a.currentOmega *= Math.exp(-8.0 * dt);
+
+                // Stop small drift
+                if (a.currentOmega < 0.05) a.currentOmega = 0;
+
+                // 2. Integrate Theta
+                const dTheta = a.currentOmega * dt;
+
+                // 3. Apply rotation around the FIXED spin axis
+                if (dTheta > 1e-6) {
+                    tmpQ.setFromAxisAngle(a.spinAxisGround, dTheta);
+                    a.rollAccum.multiply(tmpQ);
+                }
+
+                // 4. Construct base orientation from accumulated spin
+                tmpQuat.copy(a.groundBaseQuat).multiply(a.rollAccum);
+
+                // 5. Magnet/Align to target with SMOOTH HANDOFF
+                // We start blending where Ground Phase left off (approx 25%)
+                // Ramp from 0.25 -> 1.0 over the settle duration.
+                const startBlend = 0.25;
+                const settleProg = u * u; // Ease in? or Linear?
+                // Let's use a curve that ensures we hit 1.0 firmly but starts smooth
+                const blend = startBlend + (1 - startBlend) * (1 - Math.pow(1 - u, 3)); // cubic out to 1.0
+
+                if (u >= 1) {
+                    quats.current[i].copy(a.qTarget);
                     a.active = false;
                     a.finishedMotion = false;
                 } else {
-                    // Very gentle final convergence; should be tiny if correction budgeting worked.
-                    const maxStep = 1.5 * dt; // rad/sec, intentionally tiny
-                    const frac = angleLeft > 1e-6 ? Math.min(1, maxStep / angleLeft) : 1;
-                    current.slerp(a.qTarget, frac);
+                    quats.current[i].copy(tmpQuat).slerp(a.qTarget, blend).normalize();
+                    // Update position for visual stability? p1 is already set.
+                    positions.current[i].copy(a.p1);
                 }
             }
         }

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DiceArena, { DiceArenaHandle } from '@/components/DiceArena';
 import MultiPlayerScorecard from '@/components/MultiPlayerScorecard';
 import SarzeeCelebration from '@/components/SarzeeCelebration';
+import ScorecardModal from '@/components/ScorecardModal';
 import { SarzeeEngine } from '@/lib/SarzeeEngine';
 import { ScoreCategory, GameState, DieValue, GamePhase } from '@/lib/types';
 
@@ -46,6 +47,8 @@ function useSafeAudio(urls: string[]) {
   return { play };
 }
 
+
+
 type Rect = { left: number; top: number; width: number; height: number };
 type ImgInfo = { w: number; h: number };
 
@@ -63,7 +66,16 @@ const BASE_H = 558;
 const INSET_X_BASE = 150;
 const INSET_Y_BASE = 135;
 
+// Percentage based Insets for Felt
+const FELT_INSET_X_PCT = (INSET_X_BASE / BASE_W) * 100;
+const FELT_INSET_Y_PCT = (INSET_Y_BASE / BASE_H) * 100;
+
+// Felt Aspect Ratio Calculation: (1024 - 300) / (558 - 270)
+const FELT_ASPECT = (BASE_W - 2 * INSET_X_BASE) / (BASE_H - 2 * INSET_Y_BASE);
+
 const normalizeDie = (v: number) => Math.max(1, Math.min(6, Math.round(v)));
+
+const SCORECARD_LAYOUT = { left: '74%', top: '6%', width: '22%', height: '86%' };
 
 // Dynamic imports for export tools to avoid SSR issues
 const importExportTools = async () => {
@@ -74,6 +86,10 @@ const importExportTools = async () => {
 
 export default function Page() {
   const isDev = process.env.NODE_ENV === 'development';
+  // Responsive State (Element Query)
+  const [canShowEmbedded, setCanShowEmbedded] = useState(true);
+  const [boardDims, setBoardDims] = useState<{ w: number; h: number } | null>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
 
   const [phase, setPhase] = useState<GamePhase>('SETUP');
   const [playerCount, setPlayerCount] = useState(1);
@@ -94,6 +110,7 @@ export default function Page() {
 
   // --- dev-only debug panel state ---
   const [devPanelOpen, setDevPanelOpen] = useState(false);
+  const [showLayoutDebug, setShowLayoutDebug] = useState(false);
   const [showDieNumbers, setShowDieNumbers] = useState(false);
   const [arenaVisualValues, setArenaVisualValues] = useState<number[]>([1, 1, 1, 1, 1]);
   const [arenaEmittedValues, setArenaEmittedValues] = useState<number[]>([1, 1, 1, 1, 1]);
@@ -172,6 +189,11 @@ export default function Page() {
     if (vals.length === 5 && vals.every((v) => v === vals[0])) {
       setShowCelebration(false);
       requestAnimationFrame(() => setShowCelebration(true));
+    }
+
+    // Auto-open scorecard on small devices aka "popup mode" when turn settles
+    if (!canShowEmbedded) {
+      setMobileScorecardOpen(true);
     }
   };
 
@@ -354,6 +376,13 @@ export default function Page() {
   const [feltRect, setFeltRect] = useState<Rect | null>(null);
   const [feltAspect, setFeltAspect] = useState(1.0);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const q = new URLSearchParams(window.location.search);
+      if (q.get('debugLayout') === '1') setShowLayoutDebug(true);
+    }
+  }, []);
+
   const handleDownload = async () => {
     if (!scorecardRef.current) return;
     try {
@@ -417,6 +446,23 @@ export default function Page() {
     window.addEventListener('resize', computeFeltRect);
     return () => window.removeEventListener('resize', computeFeltRect);
   }, [computeFeltRect]);
+
+  // Element Query Observer for BoardStage
+  useEffect(() => {
+    if (!stageRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        setBoardDims({ w: width, h: height });
+        // Logic: Can we fit the embedded scorecard?
+        // Tuned threshold: 900x520 seems reasonable for the layout
+        const fits = width >= 900 && height >= 520;
+        setCanShowEmbedded(fits);
+      }
+    });
+    observer.observe(stageRef.current);
+    return () => observer.disconnect();
+  }, [phase]); // Re-bind if phase changes mount status
 
   const [fallbackRect, setFallbackRect] = useState<Rect | null>(null);
   useEffect(() => {
@@ -500,36 +546,38 @@ export default function Page() {
   if (phase === 'GAME_OVER') {
     // We want the game board + scorecard to remain visible BEHIND the modal.
     // So we DON'T return early here. We let the main render happen, then overlay the modal.
-    // We'll handle this by falling through to the main return, and conditionally rendering the modal.
+    // Handled by overlay below
   }
 
   if (!gameState) return null;
 
-  const showDesktopScorecard = true;
-  const railRightPx = 1;
-  const rectToUse = feltRect ?? fallbackRect;
-
   return (
-    <div className="w-screen h-screen overflow-hidden bg-black">
-      <div
-        ref={bgRef}
-        className="absolute inset-0"
-        style={{
-          backgroundImage: 'url(/textures/board_texture.jpg)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      />
+    <div className="w-screen h-screen overflow-hidden bg-black flex items-center justify-center">
 
-      {rectToUse && (
+      {/* BOARD STAGE */}
+      <div
+        ref={stageRef}
+        className="relative w-full max-w-[1600px] shadow-2xl bg-[#0a0a0a]"
+        style={{ aspectRatio: `${BASE_W}/${BASE_H}` }}
+      >
+        {/* 1. BACKGROUND TEXTURE */}
+        <img
+          src="/textures/board_texture.jpg"
+          alt="Board"
+          className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none z-0"
+          draggable={false}
+        />
+
+        {/* 2. DICE ARENA (Felt Area) */}
         <div
-          className="absolute"
+          className="absolute z-10 overflow-hidden rounded-sm"
           style={{
-            left: rectToUse.left,
-            top: rectToUse.top,
-            width: rectToUse.width,
-            height: rectToUse.height,
-            zIndex: 10,
+            // Constrain left side to avoid tray edge/texture (custom tweak)
+            left: '18%',
+            // Constrain right side to avoid overlapping the scorecard (at 74%)
+            right: '27%',
+            top: `${FELT_INSET_Y_PCT}%`,
+            bottom: `${FELT_INSET_Y_PCT}%`,
           }}
         >
           <DiceArena
@@ -538,286 +586,248 @@ export default function Page() {
             heldDice={gameState.heldDice}
             onDieClick={handleDieClick}
             canInteract={canInteractDice}
-            feltAspect={feltAspect}
+            feltAspect={FELT_ASPECT}
             showDebugNumbers={isDev && showDieNumbers}
           />
         </div>
-      )}
 
-      {/* GAME OVER MODAL REMOVED - integrated into scorecard header */}
-
-      <div className="absolute top-4 bottom-4 w-[680px] max-w-[60vw] flex flex-col gap-4 z-20" style={{ right: railRightPx }}>
-        <div
-          className="hidden lg:block flex-1 overflow-y-auto overflow-x-hidden"
-          style={{
-            opacity: showDesktopScorecard ? 1 : 0,
-            pointerEvents: showDesktopScorecard ? 'auto' : 'none',
-            transition: 'opacity 150ms ease',
-          }}
-        >
-          <div className="origin-top-right scale-[0.94] pr-2">
-            <div ref={scorecardRef} className="bg-transparent flex flex-col gap-4">
-              {phase === 'GAME_OVER' && (
-                <div className="bg-slate-900/90 text-white p-4 rounded-xl border border-white/20 shadow-xl backdrop-blur-md">
-                  {/* Winner Text - Included in PDF */}
-                  <div className="text-center mb-4 border-b border-white/10 pb-4">
-                    <h2 className="text-2xl font-black mb-1">FINAL RESULTS</h2>
-                    <div className="text-lg opacity-90">
-                      {playerCount === 1 ? (
-                        <div>You scored <span className="font-bold text-emerald-400">{totals[0]}</span> points!</div>
-                      ) : (
-                        <div>
-                          {totals[0] > totals[1] ? (
-                            <span className="text-emerald-400 font-bold">Player 1 Wins!</span>
-                          ) : totals[1] > totals[0] ? (
-                            <span className="text-amber-400 font-bold">Player 2 Wins!</span>
-                          ) : (
-                            <span className="text-white font-bold">It's a tie!</span>
-                          )}
-                          <div className="text-sm opacity-70 mt-1">
-                            P1: {totals[0]} &nbsp;•&nbsp; P2: {totals[1]}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Controls - Excluded from PDF via class */}
-                  <div className="flex items-center justify-between helper-exclude-pdf">
-                    <button
-                      onClick={resetAll}
-                      className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded shadow-lg flex items-center gap-2 transition-transform active:scale-95 text-sm"
-                    >
-                      <span>↺</span> New Game
-                    </button>
-
-                    <button
-                      onClick={() => handleDownload()}
-                      className="bg-slate-700 hover:bg-slate-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors flex items-center gap-2 text-sm"
-                      title="Download PDF"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                      <span>PDF</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-              <MultiPlayerScorecard
-                playerNames={names}
-                scorecards={scorecards}
-                yahtzeeBonuses={yahtzeeBonuses}
-                totals={totals}
-                activePlayerIndex={activePlayer}
-                potentialScores={potentialScores}
-                canSelectCategory={canSelectCategory}
-                onSelectCategory={handleCategorySelect}
-                mustPick={gameState.rollsLeft === 0}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="hidden lg:flex justify-center">
+        {/* 3. CONTROLS (Bottom Center) */}
+        {/* Positioned relative to the stage to scale with it */}
+        {/* 3. CONTROLS (Positioned in lower-right quadrant, left of scorecard) */}
+        <div className="absolute bottom-[8%] right-[31%] z-30 w-[20%] flex justify-center pointer-events-none">
           <button
             onClick={handleRoll}
             disabled={isRolling || gameState.rollsLeft <= 0 || gameState.isGameOver}
-            className="active:scale-95 transition-transform disabled:opacity-50 disabled:grayscale"
-            style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+            className="pointer-events-auto active:scale-95 transition-transform disabled:opacity-50 disabled:grayscale origin-bottom"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              width: '100%'
+            }}
           >
             <img
               src="/assets/roll_button.png"
               alt="ROLL"
               draggable={false}
-              className="h-auto select-none"
-              style={{ width: 'min(670px, 62vw)' }}
+              className="w-full h-auto select-none drop-shadow-xl"
             />
           </button>
         </div>
-      </div>
 
-      <div
-        className="lg:hidden absolute bottom-6 right-6 z-50 cursor-pointer active:scale-95 transition-transform"
-        onClick={() => setMobileScorecardOpen(true)}
-      >
-        <div className="w-16 h-20 bg-[#f4eeb1] shadow-[2px_4px_8px_rgba(0,0,0,0.5)] border border-[#d6cfa1] rounded-sm flex flex-col items-center justify-center rotate-3 hover:-rotate-1 transition-all">
-          <div className="w-10 h-1 bg-black/10 mb-1 rounded-full" />
-          <div className="w-10 h-1 bg-black/10 mb-1 rounded-full" />
-          <div className="w-8 h-1 bg-black/10 mb-1 rounded-full" />
-          <span className="text-[10px] font-bold text-stone-700 mt-1">SCORE</span>
-        </div>
-      </div>
-
-      {mobileScorecardOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="relative">
-            <button
-              className="absolute -top-4 -right-4 bg-red-600 text-white w-10 h-10 rounded-full font-bold shadow-lg z-50 hover:bg-red-500"
-              onClick={() => setMobileScorecardOpen(false)}
-            >
-              ✕
-            </button>
-
-            <div className="scale-75 origin-center bg-transparent flex flex-col gap-4">
-              {phase === 'GAME_OVER' && (
-                <div className="bg-slate-900/90 text-white p-4 rounded-xl border border-white/20 shadow-xl backdrop-blur-md mb-2">
-                  {/* Winner Text - Included in PDF */}
-                  <div className="text-center mb-4 border-b border-white/10 pb-4">
-                    <h2 className="text-2xl font-black mb-1">FINAL RESULTS</h2>
-                    <div className="text-lg opacity-90">
-                      {playerCount === 1 ? (
-                        <div>You scored <span className="font-bold text-emerald-400">{totals[0]}</span> points!</div>
-                      ) : (
-                        <div>
-                          {totals[0] > totals[1] ? (
-                            <span className="text-emerald-400 font-bold">Player 1 Wins!</span>
-                          ) : totals[1] > totals[0] ? (
-                            <span className="text-amber-400 font-bold">Player 2 Wins!</span>
-                          ) : (
-                            <span className="text-white font-bold">It's a tie!</span>
-                          )}
-                          <div className="text-sm opacity-70 mt-1">
-                            P1: {totals[0]} &nbsp;•&nbsp; P2: {totals[1]}
-                          </div>
-                        </div>
-                      )}
+        {/* 4. SCORECARD (Right Rail) */}
+        {/* Only visible if element query says we have enough space */}
+        {canShowEmbedded && (
+          <div
+            className="hidden xl:block absolute z-20 pointer-events-none flex flex-col justify-center"
+            style={SCORECARD_LAYOUT}
+          >
+            <div className="pointer-events-auto w-full h-full">
+              <div ref={scorecardRef} className="w-full h-full flex flex-col gap-4">
+                {phase === 'GAME_OVER' && (
+                  <div className="bg-slate-900/90 text-white p-4 rounded-xl border border-white/20 shadow-xl backdrop-blur-md mb-2 shrink-0">
+                    <div className="text-center mb-4 border-b border-white/10 pb-4">
+                      <h2 className="text-xl font-black mb-1">FINAL RESULTS</h2>
+                      <div className="text-emerald-400 font-bold text-lg">
+                        {playerCount === 1 ? `Score: ${totals[0]}` : `P1: ${totals[0]} - P2: ${totals[1]}`}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 helper-exclude-pdf">
+                      <button onClick={resetAll} className="bg-blue-600 text-white font-bold py-1 px-3 rounded text-sm">New Game</button>
+                      <button onClick={() => handleDownload()} className="bg-slate-700 text-white font-semibold py-1 px-3 rounded text-sm">PDF</button>
                     </div>
                   </div>
+                )}
 
-                  {/* Controls - Excluded from PDF via class */}
-                  <div className="flex items-center justify-between helper-exclude-pdf">
-                    <button
-                      onClick={resetAll}
-                      className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded shadow-lg flex items-center gap-2 transition-transform active:scale-95 text-sm"
-                    >
-                      <span>↺</span> New Game
-                    </button>
-
-                    <button
-                      onClick={() => handleDownload()}
-                      className="bg-slate-700 hover:bg-slate-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors flex items-center gap-2 text-sm"
-                      title="Download PDF"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                      <span>PDF</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-              <MultiPlayerScorecard
-                playerNames={names}
-                scorecards={scorecards}
-                yahtzeeBonuses={yahtzeeBonuses}
-                totals={totals}
-                activePlayerIndex={activePlayer}
-                potentialScores={potentialScores}
-                canSelectCategory={canSelectCategory}
-                onSelectCategory={handleCategorySelect}
-                mustPick={gameState.rollsLeft === 0}
-              />
+                <MultiPlayerScorecard
+                  playerNames={names}
+                  scorecards={scorecards}
+                  yahtzeeBonuses={yahtzeeBonuses}
+                  totals={totals}
+                  activePlayerIndex={activePlayer}
+                  potentialScores={potentialScores}
+                  canSelectCategory={canSelectCategory}
+                  onSelectCategory={handleCategorySelect}
+                  mustPick={gameState.rollsLeft === 0}
+                  className="flex-1 min-h-0"
+                />
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {
-        showCelebration && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <SarzeeCelebration onDismiss={() => setShowCelebration(false)} />
-          </div>
-        )
-      }
 
-      {
-        isDev && (
+
+        {/* DEBUG LAYOUT OVERLAY */}
+        {isDev && showLayoutDebug && (
           <>
-            <button
-              onClick={forceSarzee}
-              className="fixed bottom-2 left-2 z-[999] bg-red-600/50 hover:bg-red-600 text-white text-[10px] px-2 py-1 rounded font-mono"
-            >
-              FORCE SARZEE (S)
-            </button>
-
-            <button
-              onClick={() => setDevPanelOpen((s) => !s)}
-              className="fixed bottom-2 left-[140px] z-[999] bg-slate-800/60 hover:bg-slate-800 text-white text-[10px] px-2 py-1 rounded font-mono"
-            >
-              DEBUG (D)
-            </button>
-          </>
-        )
-      }
-
-      {
-        isDev && devPanelOpen && (
-          <div className="fixed left-2 bottom-12 z-[999] w-[360px] max-w-[92vw] rounded-xl border border-white/10 bg-black/70 backdrop-blur-md p-3 text-white shadow-2xl">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="font-mono text-xs opacity-80">DEV DEBUG</div>
-                <div className="font-mono text-[11px] opacity-70">D = toggle • S = force Sarzee • C = celebration</div>
+            <div
+              className="absolute z-[999] pointer-events-none border-2 border-red-500 bg-red-500/20"
+              style={SCORECARD_LAYOUT}
+            />
+            {/* DEBUG INFO PANEL (Fixed to top-left of stage for context) */}
+            <div className="absolute top-0 left-0 z-[1000] bg-black/80 text-white font-mono text-xs p-2 pointer-events-none border border-white/20 rounded">
+              <div className="font-bold text-emerald-400 mb-1">LAYOUT DEBUG</div>
+              <div>Board: {boardDims?.w.toFixed(0)} x {boardDims?.h.toFixed(0)}</div>
+              <div>Limit: 900 x 520</div>
+              <div className={`mt-1 font-bold ${canShowEmbedded ? 'text-blue-400' : 'text-orange-400'}`}>
+                {canShowEmbedded ? 'MODE: EMBEDDED' : 'MODE: POPUP'}
               </div>
-              <button className="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/15" onClick={() => setDevPanelOpen(false)}>
-                ✕
-              </button>
             </div>
+          </>
+        )}
 
-            <label className="mt-3 flex items-center gap-2 text-xs font-mono">
-              <input type="checkbox" checked={showDieNumbers} onChange={(e) => setShowDieNumbers(e.target.checked)} />
-              Show numbers on dice
-            </label>
-
-            <div className="mt-3 font-mono text-xs">
-              <div className="opacity-70">rollSeq: {arenaRollSeq}</div>
-              <div className="mt-2 grid gap-2">
-                <div>
-                  <div className="opacity-70">Arena visual (quaternion)</div>
-                  <div className="text-sm">[{arenaVisualValues.join(', ')}]</div>
-                </div>
-                <div>
-                  <div className="opacity-70">Arena emitted (animation done)</div>
-                  <div className="text-sm">[{arenaEmittedValues.join(', ')}]</div>
-                </div>
-                <div>
-                  <div className="opacity-70">Engine stored (state.diceValues)</div>
-                  <div className="text-sm">[{engineDiceValues.join(', ')}]</div>
-                </div>
-                <div>
-                  <div className="opacity-70">Engine Yahtzee bonus</div>
-                  <div className="text-sm">{gameState.yahtzeeBonus}</div>
-                </div>
+        {/* 5. MOBILE DRAWER TRIGGER (Bottom Right) */}
+        {/* Show if embedded is hidden */}
+        {!canShowEmbedded && (
+          <div
+            className="absolute bottom-[5%] right-[5%] z-50 cursor-pointer active:scale-95 transition-transform"
+            onClick={() => setMobileScorecardOpen(true)}
+          >
+            <div className="w-[10cqw] h-[12cqw] max-w-[60px] max-h-[75px] bg-[#f4eeb1] shadow-lg border border-[#d6cfa1] rounded-sm flex flex-col items-center justify-center rotate-3 hover:-rotate-1 transition-all">
+              <div className="w-[70%] h-[10%] bg-black/10 mb-[10%] rounded-full" />
+              <div className="w-[70%] h-[10%] bg-black/10 mb-[10%] rounded-full" />
+              <span className="text-[1.5cqw] font-bold text-stone-700">SCORE</span>
+            </div>
+          </div>
+        )}
+        {
+          showCelebration && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
+              <div className="pointer-events-auto">
+                <SarzeeCelebration onDismiss={() => setShowCelebration(false)} />
               </div>
+            </div>
+          )
+        }
 
-              {arenaEmittedValues.length === 5 && engineDiceValues.length === 5 && (
-                <div className="mt-3">
-                  {arenaEmittedValues.join(',') === engineDiceValues.join(',') ? (
-                    <div className="text-emerald-300">Engine matches emitted</div>
-                  ) : (
-                    <div className="text-red-300">Mismatch: engine != emitted</div>
-                  )}
+        {
+          isDev && (
+            <>
+              <button
+                onClick={forceSarzee}
+                className="absolute bottom-[2%] left-[2%] z-[999] bg-red-600/50 hover:bg-red-600 text-white text-[10px] px-2 py-1 rounded font-mono"
+              >
+                FORCE SARZEE (S)
+              </button>
+
+              <button
+                onClick={() => setDevPanelOpen((s) => !s)}
+                className="absolute bottom-[2%] left-[12%] z-[999] bg-slate-800/60 hover:bg-slate-800 text-white text-[10px] px-2 py-1 rounded font-mono"
+              >
+                DEBUG (D)
+              </button>
+            </>
+          )
+        }
+
+        {
+          isDev && devPanelOpen && (
+            <div className="absolute left-[2%] bottom-[8%] z-[999] w-[360px] max-w-[50%] rounded-xl border border-white/10 bg-black/70 backdrop-blur-md p-3 text-white shadow-2xl">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-mono text-xs opacity-80">DEV DEBUG</div>
+                  <div className="font-mono text-[11px] opacity-70">D = toggle • S = force Sarzee • C = celebration</div>
                 </div>
-              )}
-
-              <div className="mt-4 pt-4 border-t border-white/10">
-                <button
-                  onClick={() => {
-                    enginesRef.current.forEach((e, i) => e.debugSetNearEndgame(12345 + i));
-                    // Refresh UI to match current player's new state
-                    const engine = enginesRef.current[activePlayer];
-                    const s = engine.getGameState();
-                    setGameState(s);
-                    setPotentialScores({} as any);
-                    setIsRolling(false);
-                    arenaRef.current?.reset();
-                    setDevPanelOpen(false); // Close panel to see result
-                  }}
-                  className="w-full bg-amber-600/80 hover:bg-amber-600 py-2 rounded text-xs font-bold uppercase tracking-wider"
-                >
-                  Jump to Final Turn
+                <button className="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/15" onClick={() => setDevPanelOpen(false)}>
+                  ✕
                 </button>
               </div>
+
+              <label className="mt-3 flex items-center gap-2 text-xs font-mono">
+                <input type="checkbox" checked={showDieNumbers} onChange={(e) => setShowDieNumbers(e.target.checked)} />
+                Show numbers on dice
+              </label>
+
+              <label className="mt-2 flex items-center gap-2 text-xs font-mono">
+                <input type="checkbox" checked={showLayoutDebug} onChange={(e) => setShowLayoutDebug(e.target.checked)} />
+                Show Layout Debug
+              </label>
+
+              <div className="mt-3 font-mono text-xs">
+                <div className="opacity-70">rollSeq: {arenaRollSeq}</div>
+                <div className="mt-2 grid gap-2">
+                  <div>
+                    <div className="opacity-70">Arena visual (quaternion)</div>
+                    <div className="text-sm">[{arenaVisualValues.join(', ')}]</div>
+                  </div>
+                  <div>
+                    <div className="opacity-70">Arena emitted (animation done)</div>
+                    <div className="text-sm">[{arenaEmittedValues.join(', ')}]</div>
+                  </div>
+                  <div>
+                    <div className="opacity-70">Engine stored (state.diceValues)</div>
+                    <div className="text-sm">[{engineDiceValues.join(', ')}]</div>
+                  </div>
+                  <div>
+                    <div className="opacity-70">Engine Yahtzee bonus</div>
+                    <div className="text-sm">{gameState.yahtzeeBonus}</div>
+                  </div>
+                </div>
+
+                {arenaEmittedValues.length === 5 && engineDiceValues.length === 5 && (
+                  <div className="mt-3">
+                    {arenaEmittedValues.join(',') === engineDiceValues.join(',') ? (
+                      <div className="text-emerald-300">Engine matches emitted</div>
+                    ) : (
+                      <div className="text-red-300">Mismatch: engine != emitted</div>
+                    )}
+                  </div>
+                )}
+
+                <div className="mt-4 pt-4 border-t border-white/10">
+                  <button
+                    onClick={() => {
+                      enginesRef.current.forEach((e, i) => e.debugSetNearEndgame(12345 + i));
+                      // Refresh UI to match current player's new state
+                      const engine = enginesRef.current[activePlayer];
+                      const s = engine.getGameState();
+                      setGameState(s);
+                      setPotentialScores({} as any);
+                      setIsRolling(false);
+                      arenaRef.current?.reset();
+                      setDevPanelOpen(false); // Close panel to see result
+                    }}
+                    className="w-full bg-amber-600/80 hover:bg-amber-600 py-2 rounded text-xs font-bold uppercase tracking-wider"
+                  >
+                    Jump to Final Turn
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        )
-      }
+          )
+        }
+      </div>
+
+      {/* MOBILE OVERLAYS (Outside Stage? Or Inside? Inside is safer for pure container app, but Fixed works for modal) */}
+      {/* MOBILE OVERLAYS (Portal) */}
+      <ScorecardModal
+        isOpen={mobileScorecardOpen}
+        onClose={() => setMobileScorecardOpen(false)}
+      >
+        <div className="flex flex-col gap-4 p-4 text-white">
+          {/* Mobile Game Over */}
+          {phase === 'GAME_OVER' && (
+            <div className="bg-slate-900 text-white p-4 rounded-xl border border-white/20 shadow-xl shrink-0">
+              <h2 className="text-xl font-black mb-2 text-center">GAME OVER</h2>
+              <button onClick={resetAll} className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">Play Again</button>
+            </div>
+          )}
+          <MultiPlayerScorecard
+            playerNames={names}
+            scorecards={scorecards}
+            yahtzeeBonuses={yahtzeeBonuses}
+            totals={totals}
+            activePlayerIndex={activePlayer}
+            potentialScores={potentialScores}
+            canSelectCategory={canSelectCategory}
+            onSelectCategory={handleCategorySelect}
+            mustPick={gameState.rollsLeft === 0}
+            className="flex-1 w-full"
+          />
+        </div>
+      </ScorecardModal>
     </div >
   );
 }
