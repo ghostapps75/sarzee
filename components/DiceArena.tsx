@@ -309,7 +309,7 @@ function AnimatedDiceLayer({
         const launchSpread = Math.min(2.0, arenaWidth * LAUNCH_SPREAD_FACTOR);
 
         const marginX = 1.35;
-        const marginZ = 1.45;
+        const marginZ = 1.65; // Increased to keep dice off the vertical edges
         const xMin = offsetX - arenaWidth / 2 + marginX;
         const xMax = offsetX + arenaWidth / 2 - marginX;
         const zMin = -arenaHeight / 2 + marginZ;

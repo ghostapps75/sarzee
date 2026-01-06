@@ -576,8 +576,9 @@ export default function Page() {
             left: '18%',
             // Constrain right side to avoid overlapping the scorecard (at 74%)
             right: '27%',
-            top: `${FELT_INSET_Y_PCT}%`,
-            bottom: `${FELT_INSET_Y_PCT}%`,
+            // Tighten vertical bounds to strictly stay on felt (avoid wood)
+            top: '26%',
+            bottom: '26%',
           }}
         >
           <DiceArena
