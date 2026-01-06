@@ -573,12 +573,12 @@ export default function Page() {
           className="absolute z-10 overflow-hidden rounded-sm"
           style={{
             // Constrain left side to avoid tray edge/texture (custom tweak)
-            left: '18%',
+            left: '23%',
             // Constrain right side to avoid overlapping the scorecard (at 74%)
             right: '27%',
             // Tighten vertical bounds to strictly stay on felt (avoid wood)
-            top: '26%',
-            bottom: '26%',
+            top: '27%',
+            bottom: '27%',
           }}
         >
           <DiceArena
