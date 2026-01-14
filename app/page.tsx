@@ -86,7 +86,19 @@ const importExportTools = async () => {
 
 export default function Page() {
   const isDev = process.env.NODE_ENV === 'development';
-  // Responsive State (Element Query)
+  // Responsive State (Window-based)
+  const [windowSize, setWindowSize] = useState<{ w: number; h: number } | null>(null);
+
+  useEffect(() => {
+    const handleResize = () => setWindowSize({ w: window.innerWidth, h: window.innerHeight });
+    handleResize(); // Init
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isMobilePortrait = windowSize ? (windowSize.w < 768 && windowSize.h > windowSize.w) : false;
+
+  // Embedded score logic (Element Query based - still useful for Desktop sizing)
   const [canShowEmbedded, setCanShowEmbedded] = useState(true);
   const [boardDims, setBoardDims] = useState<{ w: number; h: number } | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -551,6 +563,116 @@ export default function Page() {
 
   if (!gameState) return null;
 
+
+  if (isMobilePortrait && windowSize) {
+    const canRoll = !isRolling && gameState.rollsLeft > 0 && !gameState.isGameOver;
+    const isCategorySelectionPhase = !isRolling && gameState.rollsLeft < 3 && gameState.rollsLeft >= 0;
+
+    return (
+      <div className="fixed inset-0 bg-stone-950 flex flex-col text-white overflow-hidden">
+        {/* MOBILE UPPER: DICE ARENA (60%) */}
+        <div className="relative w-full h-[60%] bg-emerald-900 shadow-inner">
+          {/* Texture or Gradient */}
+          <div className="absolute inset-0 bg-[url('/textures/felt_pattern.png')] opacity-50 mix-blend-multiply pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 to-transparent h-16 pointer-events-none" />
+
+          {/* Full width/height arena */}
+          <div className="absolute inset-0">
+            <DiceArena
+              ref={arenaRef}
+              onTurnComplete={handleTurnComplete}
+              heldDice={gameState.heldDice}
+              onDieClick={handleDieClick}
+              canInteract={canInteractDice}
+              // Aspect of this container (w / (h*0.6))
+              feltAspect={windowSize.w / (windowSize.h * 0.6)}
+              showDebugNumbers={isDev && showDieNumbers}
+              isMobile={true}
+            />
+          </div>
+
+          {/* Mobile HUD Overlay (Turn/Score) */}
+          <div className="absolute top-4 left-4 right-4 flex justify-between pointer-events-none z-20">
+            <div className="bg-black/50 px-3 py-1 rounded-full text-xs font-bold text-emerald-400 border border-emerald-500/30">
+              Turn {gameState.currentTurn}/13
+            </div>
+            <div className="bg-black/50 px-3 py-1 rounded-full text-xs font-bold text-white border border-white/10">
+              Total: {totals[activePlayer]}
+            </div>
+          </div>
+        </div>
+
+        {/* MOBILE LOWER: CONTROLS (40%) */}
+        <div className="flex-1 bg-stone-900 border-t border-white/10 flex flex-col items-center justify-center gap-6 p-6 relative">
+          {/* Player Info */}
+          <div className="text-center">
+            <div className="text-stone-400 text-sm uppercase tracking-widest mb-1">Current Player</div>
+            <div className="text-2xl font-black text-white">{names[activePlayer]}</div>
+          </div>
+
+          {/* BIG Buttons */}
+          <div className="w-full max-w-sm flex flex-col gap-4">
+            {/* Main Roll Action */}
+            <button
+              onClick={handleRoll}
+              disabled={!canRoll}
+              className={`
+                    w-full py-5 rounded-2xl text-2xl font-black uppercase tracking-wider shadow-lg transform transition-all active:scale-95
+                    ${canRoll
+                  ? 'bg-gradient-to-br from-amber-500 to-amber-700 text-white shadow-amber-900/50'
+                  : 'bg-stone-800 text-stone-600 cursor-not-allowed'}
+                  `}
+            >
+              {gameState.rollsLeft > 0 ? `ROLL (${gameState.rollsLeft})` : 'PICK SCORE'}
+            </button>
+
+            {/* Scorecard Toggle */}
+            <button
+              onClick={() => setMobileScorecardOpen(true)}
+              className="w-full py-4 rounded-xl bg-stone-800 text-stone-300 font-bold uppercase tracking-wider text-sm border border-white/5 hover:bg-stone-700 active:scale-95"
+            >
+              View Scorecard
+            </button>
+          </div>
+        </div>
+
+        {/* Re-use existing overlays (Portals) */}
+        {/* Mobile Scorecard Portal is already handled below, just triggered by state */}
+        <ScorecardModal
+          isOpen={mobileScorecardOpen}
+          onClose={() => setMobileScorecardOpen(false)}
+        >
+          <div className="flex flex-col gap-4 p-4 text-white h-full relative">
+            <button
+              onClick={() => setMobileScorecardOpen(false)}
+              className="absolute top-2 right-2 p-2 text-white/50 hover:text-white"
+            >
+              ✕
+            </button>
+            <h2 className="text-center font-black text-xl mb-4">SCORECARD</h2>
+            <MultiPlayerScorecard
+              playerNames={names}
+              scorecards={scorecards}
+              yahtzeeBonuses={yahtzeeBonuses}
+              totals={totals}
+              activePlayerIndex={activePlayer}
+              potentialScores={potentialScores}
+              canSelectCategory={isCategorySelectionPhase}
+              onSelectCategory={(cat) => {
+                handleCategorySelect(cat);
+                setMobileScorecardOpen(false);
+              }}
+              className="flex-1"
+              mustPick={gameState.rollsLeft === 0}
+            />
+          </div>
+        </ScorecardModal>
+
+        {/* Celebration / Notifications would go here too if needed */}
+      </div>
+    );
+  }
+
   return (
     <div className="w-screen h-screen overflow-hidden bg-black flex items-center justify-center">
 
@@ -589,6 +711,7 @@ export default function Page() {
             canInteract={canInteractDice}
             feltAspect={FELT_ASPECT}
             showDebugNumbers={isDev && showDieNumbers}
+            isMobile={isMobilePortrait}
           />
         </div>
 

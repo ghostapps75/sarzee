@@ -26,14 +26,15 @@ interface DiceArenaProps {
     showDebugNumbers?: boolean;
     feltAspect?: number;
     arenaWorldHeight?: number;
+    isMobile?: boolean;
 }
 
 const DIE_SIZE = 1.11;
 const HALF = DIE_SIZE / 2;
 
 // --- TUNING CONSTANTS for START of roll ---
-const FLIGHT_SPIN_MIN = 5.0;  // rad/s
-const FLIGHT_SPIN_MAX = 24.0;
+const FLIGHT_SPIN_MIN = 3.0;  // rad/s (reduced from 5.0 for heavier feel)
+const FLIGHT_SPIN_MAX = 14.0;  // reduced from 24.0 for heavier feel
 const ARC_MIN = 1.5;          // peak height
 const ARC_MAX = 2.2;
 const IMPACT_OFFSET_MIN = 0.4; // how far from center it lands
@@ -180,6 +181,7 @@ function AnimatedDiceLayer({
     arenaWorldHeight,
     onTurnComplete,
     apiRef,
+    isMobile,
 }: {
     heldDice: boolean[];
     canInteract: boolean;
@@ -190,6 +192,7 @@ function AnimatedDiceLayer({
     arenaWorldHeight: number;
     onTurnComplete?: (results: number[]) => void;
     apiRef: React.MutableRefObject<DiceArenaHandle | null>;
+    isMobile?: boolean;
 }) {
     const dieRefs = useRef<Array<DieHandle | null>>([null, null, null, null, null]);
 
@@ -244,10 +247,14 @@ function AnimatedDiceLayer({
         }))
     );
 
+    // PRIORITY 2: Move held dice OFF the board (to the right side rail)
     const heldPos = useMemo(() => {
-        const z = arenaHeight * 0.42;
-        return Array.from({ length: 5 }, (_, i) => new THREE.Vector3(offsetX + (i - 2) * 1.55, 0.62, z));
-    }, [arenaHeight]);
+        // Place held dice to the right of the board, completely outside the physics tray
+        const sideRailOffset = 2.5; // Distance from board edge
+        const x = offsetX + arenaWidth / 2 + sideRailOffset;
+        // Arrange them vertically along the side rail
+        return Array.from({ length: 5 }, (_, i) => new THREE.Vector3(x, 0.62, (i - 2) * 1.2));
+    }, [arenaWidth, offsetX]);
 
     const emit = (vals: number[]) => {
         const v = vals.map(clampDie);
@@ -308,8 +315,9 @@ function AnimatedDiceLayer({
         // Tighter launch spread
         const launchSpread = Math.min(2.0, arenaWidth * LAUNCH_SPREAD_FACTOR);
 
-        const marginX = 1.35;
-        const marginZ = 1.65; // Increased to keep dice off the vertical edges
+        // PRIORITY 4: Tighten margins to prevent dice from landing outside visual board
+        const marginX = 1.6;  // Increased from 1.35
+        const marginZ = 1.8;  // Increased from 1.65
         const xMin = offsetX - arenaWidth / 2 + marginX;
         const xMax = offsetX + arenaWidth / 2 - marginX;
         const zMin = -arenaHeight / 2 + marginZ;
@@ -515,8 +523,8 @@ function AnimatedDiceLayer({
                         tmpDelta.subVectors(a.p1, a.pMid).normalize();
                         a.spinAxisGround.crossVectors(tmpDelta, up).normalize();
 
-                        // Initialize Ground Spin Speed (boosted from flight)
-                        a.currentOmega = a.flightSpeed * 1.35;
+                        // PRIORITY 4: Reduce spin speed for heavier feel
+                        a.currentOmega = a.flightSpeed * 1.1;  // Reduced from 1.35
                         a.accumulatedTheta = 0;
 
                         // Reset rolling accumulation at ground start
@@ -639,9 +647,12 @@ function AnimatedDiceLayer({
         wasActiveRef.current = activeNow;
     });
 
+    // PRIORITY 1: Disable shadows on mobile for performance
+    const enableShadows = !isMobile;
+
     return (
         <>
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[offsetX, 0.0, 0]} receiveShadow raycast={() => null}>
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[offsetX, 0.0, 0]} receiveShadow={enableShadows} raycast={() => null}>
                 <planeGeometry args={[arenaWidth, arenaHeight]} />
                 <meshStandardMaterial transparent opacity={0} />
             </mesh>
@@ -676,6 +687,7 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
         showDebugNumbers = false,
         feltAspect = 1.0,
         arenaWorldHeight = 10.0,
+        isMobile = false,
     } = props;
 
     const apiRef = useRef<DiceArenaHandle | null>(null);
@@ -699,16 +711,26 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
         setNonce((n) => n + 1);
     }, [feltAspect, arenaWorldHeight]);
 
+    // PRIORITY 1: Performance mode for mobile - disable expensive features
+    // PRIORITY 3: Adjust camera for mobile portrait (zoom in when vertical layout)
+    const isVerticalLayout = feltAspect < 1.0; // Portrait/vertical
+    const cameraY = isMobile && isVerticalLayout ? 12 : 18; // Zoom in on mobile portrait
+    const cameraFov = isMobile && isVerticalLayout ? 55 : 48; // Wider FOV to fill screen
+
     return (
         <div className="w-full h-full relative">
             <Canvas
-                shadows
-                gl={{ alpha: true, antialias: true }}
+                shadows={!isMobile}
+                gl={{ 
+                    alpha: true, 
+                    antialias: !isMobile,  // Disable antialias on mobile for performance
+                    powerPreference: isMobile ? 'low-power' : 'high-performance',
+                }}
                 style={{ background: 'transparent', touchAction: 'none' }}
-                camera={{ position: [0, 18, 0], fov: 48 }}
+                camera={{ position: [0, cameraY, 0], fov: cameraFov }}
             >
                 <ambientLight intensity={0.55} />
-                <directionalLight position={[10, 20, 10]} intensity={1} castShadow />
+                <directionalLight position={[10, 20, 10]} intensity={1} castShadow={!isMobile} />
 
                 <AnimatedDiceLayer
                     heldDice={heldDice}
@@ -720,6 +742,7 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
                     arenaWorldHeight={arenaWorldHeight}
                     onTurnComplete={onTurnComplete}
                     apiRef={apiRef}
+                    isMobile={props.isMobile}
                 />
             </Canvas>
         </div>

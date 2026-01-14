@@ -147,7 +147,14 @@ export default function MultiPlayerScorecard({
         style={{ top: `${topPct}%`, height: `${heightPct}%`, left: 0, right: 0 }}
         onClick={() => !isTaken && isActive && canSelectCategory && onSelectCategory(cat)}
       >
-        <span className={`${isTaken ? 'text-slate-800' : 'text-slate-400'} ${showPotential ? 'text-blue-600 font-bold animate-pulse' : ''} ${isZero ? 'opacity-40' : ''} text-[10px] sm:text-xs lg:text-base`}>
+        <span
+          className={`
+            text-[14px] sm:text-lg lg:text-xl transition-all duration-200
+            ${showPotential ? 'text-blue-600 font-extrabold scale-110 drop-shadow-sm' : ''}
+            ${isTaken && !isZero ? 'text-slate-900 font-bold' : ''}
+            ${isZero ? 'text-slate-300 font-normal' : ''}
+          `}
+        >
           {displayVal}
         </span>
       </div >
