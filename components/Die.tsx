@@ -140,7 +140,7 @@ const Die = forwardRef<DieHandle, DieProps>(
         };
 
         return (
-            <group ref={groupRef}>
+            <group ref={groupRef} scale={isHeld ? 1.3 : 1.0}>
                 {showDebugNumber && (
                     <Text position={[0, 1.2, 0]} fontSize={0.45} color="black" outlineWidth={0.03} outlineColor="white">
                         {debugValue}

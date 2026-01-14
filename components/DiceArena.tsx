@@ -81,6 +81,7 @@ function generateLandingPoints({
     xMax,
     zMin,
     zMax,
+    avoidPositions,
 }: {
     count: number;
     rng: () => number;
@@ -89,9 +90,11 @@ function generateLandingPoints({
     xMax: number;
     zMin: number;
     zMax: number;
+    avoidPositions?: THREE.Vector3[];
 }): THREE.Vector3[] {
     const pts: THREE.Vector3[] = [];
     const maxAttempts = 900;
+    const avoidDist = minDist * 1.5; // Larger buffer around held dice
 
     for (let i = 0; i < count; i++) {
         let placed = false;
@@ -102,10 +105,20 @@ function generateLandingPoints({
             const c = new THREE.Vector3(x, 0.62, z);
 
             let ok = true;
+            // Check against already placed points
             for (const p of pts) {
                 if (c.distanceTo(p) < minDist) {
                     ok = false;
                     break;
+                }
+            }
+            // Check against held dice positions (avoid collision)
+            if (ok && avoidPositions) {
+                for (const heldPos of avoidPositions) {
+                    if (c.distanceTo(heldPos) < avoidDist) {
+                        ok = false;
+                        break;
+                    }
                 }
             }
             if (ok) {
@@ -169,6 +182,13 @@ type DieAnim = {
     // NEW: Monotonic integration
     currentOmega: number;
     accumulatedTheta: number;
+
+    // NEW: Held dice organization
+    movingToHeldSlot: boolean;
+    heldSlotTime: number;
+    heldSlotDuration: number;
+    heldStartPos: THREE.Vector3;
+    heldTargetPos: THREE.Vector3;
 };
 
 function AnimatedDiceLayer({
@@ -244,17 +264,36 @@ function AnimatedDiceLayer({
 
             currentOmega: 0,
             accumulatedTheta: 0,
+
+            movingToHeldSlot: false,
+            heldSlotTime: 0,
+            heldSlotDuration: 0.4,
+            heldStartPos: new THREE.Vector3(),
+            heldTargetPos: new THREE.Vector3(),
         }))
     );
 
-    // PRIORITY 2: Move held dice OFF the board (to the right side rail)
-    const heldPos = useMemo(() => {
-        // Place held dice to the right of the board, completely outside the physics tray
-        const sideRailOffset = 2.5; // Distance from board edge
-        const x = offsetX + arenaWidth / 2 + sideRailOffset;
-        // Arrange them vertically along the side rail
-        return Array.from({ length: 5 }, (_, i) => new THREE.Vector3(x, 0.62, (i - 2) * 1.2));
-    }, [arenaWidth, offsetX]);
+    // Track previous held state to detect when dice become held
+    const prevHeldDice = useRef<boolean[]>([false, false, false, false, false]);
+
+    // PRIORITY 2: Held dice organize into a nice row when held
+    const heldSlotPositions = useMemo(() => {
+        // Organize held dice in a horizontal row at the bottom of the board
+        const bottomZ = -arenaHeight / 2 - 1.0; // Bottom edge
+        const centerX = offsetX; // Center horizontally
+        const totalWidth = 4 * 1.4; // Width for 5 dice with spacing
+        const startX = centerX - totalWidth / 2; // Start position to center the row
+        return Array.from({ length: 5 }, (_, i) => {
+            return new THREE.Vector3(
+                startX + i * 1.4, // Space them out horizontally
+                0.62,
+                bottomZ
+            );
+        });
+    }, [arenaHeight, offsetX]);
+
+    // Track which held dice are in which slots
+    const heldSlotAssignment = useRef<Map<number, number>>(new Map()); // dieIndex -> slotIndex
 
     const emit = (vals: number[]) => {
         const v = vals.map(clampDie);
@@ -323,22 +362,42 @@ function AnimatedDiceLayer({
         const zMin = -arenaHeight / 2 + marginZ;
         const zMax = arenaHeight / 2 - marginZ;
 
+        // Collect positions of held dice to avoid when placing new dice
+        // Use their organized slot positions, not their current positions
+        const heldPositions: THREE.Vector3[] = [];
+        for (let i = 0; i < 5; i++) {
+            if (heldDice[i]) {
+                const slotIndex = heldSlotAssignment.current.get(i);
+                if (slotIndex !== undefined) {
+                    heldPositions.push(heldSlotPositions[slotIndex].clone());
+                } else {
+                    // Fallback to current position if slot not assigned yet
+                    heldPositions.push(positions.current[i].clone());
+                }
+            }
+        }
+
+        // Only generate landing points for non-held dice
+        const nonHeldCount = 5 - heldPositions.length;
         const land = generateLandingPoints({
-            count: 5,
+            count: nonHeldCount,
             rng,
             minDist: 1.35,
             xMin,
             xMax,
             zMin,
             zMax,
+            avoidPositions: heldPositions,
         }).sort(() => rng() - 0.5);
 
+        let landIndex = 0;
         for (let i = 0; i < 5; i++) {
             const a = anim.current[i];
 
             if (heldDice[i]) {
                 cancelAnimForDie(i);
-                positions.current[i].copy(heldPos[i]);
+                // Keep dice at current position - don't move it
+                // Quaternion is already preserved (keeps current face value)
                 continue;
             }
 
@@ -356,7 +415,8 @@ function AnimatedDiceLayer({
             const sz = launchZ + (rng() - 0.5) * 0.75;
             a.p0.set(sx, 0.62, sz);
 
-            a.p1.copy(land[i]);
+            a.p1.copy(land[landIndex]);
+            landIndex++;
 
             const impactOffset = IMPACT_OFFSET_MIN + rng() * (IMPACT_OFFSET_MAX - IMPACT_OFFSET_MIN);
             const theta = rng() * Math.PI * 2;
@@ -446,11 +506,61 @@ function AnimatedDiceLayer({
     useFrame((_, dt) => {
         let anyActive = false;
 
+        // Check for newly held dice and assign them slots
         for (let i = 0; i < 5; i++) {
-            // HELD dice are pinned and NEVER animated
+            if (heldDice[i] && !prevHeldDice.current[i]) {
+                // This die just became held - assign it a slot and start animation
+                const a = anim.current[i];
+                
+                // Find an available slot (first unused slot)
+                let slotIndex = 0;
+                const usedSlots = Array.from(heldSlotAssignment.current.values());
+                while (usedSlots.includes(slotIndex)) {
+                    slotIndex++;
+                }
+                heldSlotAssignment.current.set(i, slotIndex);
+                
+                // Start animation to held slot
+                a.movingToHeldSlot = true;
+                a.heldSlotTime = 0;
+                a.heldStartPos.copy(positions.current[i]);
+                a.heldTargetPos.copy(heldSlotPositions[slotIndex]);
+            } else if (!heldDice[i] && prevHeldDice.current[i]) {
+                // This die just became un-held - free its slot
+                heldSlotAssignment.current.delete(i);
+                anim.current[i].movingToHeldSlot = false;
+            }
+        }
+        prevHeldDice.current = [...heldDice];
+
+        for (let i = 0; i < 5; i++) {
+            const animState = anim.current[i];
+            
+            // HELD dice: animate to organized position, then stay there
             if (heldDice[i]) {
                 cancelAnimForDie(i);
-                positions.current[i].copy(heldPos[i]);
+                
+                if (animState.movingToHeldSlot) {
+                    // Smoothly animate to held slot position
+                    animState.heldSlotTime += dt;
+                    const u = Math.min(1, animState.heldSlotTime / animState.heldSlotDuration);
+                    const eased = easeOutCubic(u);
+                    
+                    tmpPos.lerpVectors(animState.heldStartPos, animState.heldTargetPos, eased);
+                    positions.current[i].copy(tmpPos);
+                    
+                    if (u >= 1) {
+                        animState.movingToHeldSlot = false;
+                        positions.current[i].copy(animState.heldTargetPos);
+                    }
+                } else {
+                    // Already in position - stay there
+                    const slotIndex = heldSlotAssignment.current.get(i);
+                    if (slotIndex !== undefined) {
+                        positions.current[i].copy(heldSlotPositions[slotIndex]);
+                    }
+                }
+                // Quaternion stays as-is (preserves face value)
                 continue;
             }
 

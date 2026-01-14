@@ -676,7 +676,7 @@ export default function Page() {
   return (
     <div className="w-screen h-screen overflow-hidden bg-black flex items-center justify-center">
 
-      {/* BOARD STAGE */}
+        {/* BOARD STAGE */}
       <div
         ref={stageRef}
         className="relative w-full max-w-[1600px] shadow-2xl bg-[#0a0a0a]"
@@ -952,6 +952,6 @@ export default function Page() {
           />
         </div>
       </ScorecardModal>
-    </div >
+    </div>
   );
 }
