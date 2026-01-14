@@ -712,10 +712,8 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
     }, [feltAspect, arenaWorldHeight]);
 
     // PRIORITY 1: Performance mode for mobile - disable expensive features
-    // PRIORITY 3: Adjust camera for mobile portrait (zoom in when vertical layout)
-    const isVerticalLayout = feltAspect < 1.0; // Portrait/vertical
-    const cameraY = isMobile && isVerticalLayout ? 12 : 18; // Zoom in on mobile portrait
-    const cameraFov = isMobile && isVerticalLayout ? 55 : 48; // Wider FOV to fill screen
+    const cameraY = 18;
+    const cameraFov = 48;
 
     return (
         <div className="w-full h-full relative">
