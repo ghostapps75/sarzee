@@ -1,15 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 type Props = {
     onDismiss: () => void;
 };
 
-export default function SarzeeCelebration({ onDismiss }: Props) {
+export default function NancyCelebration({ onDismiss }: Props) {
     useEffect(() => {
         // Play sound on mount
-        const audio = new Audio('/sounds/sarzee.mp3');
+        const audio = new Audio('/sounds/nancy.mp3');
         audio.volume = 0.6;
         audio.play().catch((err) => console.warn('Audio play failed:', err));
 
@@ -31,8 +31,8 @@ export default function SarzeeCelebration({ onDismiss }: Props) {
                 <div className="absolute inset-0 bg-blue-900/40 rounded-2xl backdrop-blur-md border-2 border-blue-600/30 shadow-2xl" />
 
                 <img
-                    src="/assets/sarzee_congrats.png"
-                    alt="SARZEE!"
+                    src="/assets/nancy.jpg"
+                    alt="NANCY!"
                     className="relative w-full h-full max-w-[600px] max-h-[400px] object-contain drop-shadow-2xl z-10"
                 />
             </div>

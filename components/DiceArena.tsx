@@ -507,30 +507,50 @@ function AnimatedDiceLayer({
         let anyActive = false;
 
         // Check for newly held dice and assign them slots
+        // First, handle un-holding (free slots before reassigning)
         for (let i = 0; i < 5; i++) {
-            if (heldDice[i] && !prevHeldDice.current[i]) {
-                // This die just became held - assign it a slot and start animation
-                const a = anim.current[i];
-                
-                // Find an available slot (first unused slot)
-                let slotIndex = 0;
-                const usedSlots = Array.from(heldSlotAssignment.current.values());
-                while (usedSlots.includes(slotIndex)) {
-                    slotIndex++;
-                }
-                heldSlotAssignment.current.set(i, slotIndex);
-                
-                // Start animation to held slot
-                a.movingToHeldSlot = true;
-                a.heldSlotTime = 0;
-                a.heldStartPos.copy(positions.current[i]);
-                a.heldTargetPos.copy(heldSlotPositions[slotIndex]);
-            } else if (!heldDice[i] && prevHeldDice.current[i]) {
-                // This die just became un-held - free its slot
+            if (!heldDice[i] && prevHeldDice.current[i]) {
+                // This die just became un-held - free its slot and reset animation
                 heldSlotAssignment.current.delete(i);
-                anim.current[i].movingToHeldSlot = false;
+                const a = anim.current[i];
+                a.movingToHeldSlot = false;
+                a.heldSlotTime = 0;
             }
         }
+        
+        // Then, handle newly held dice and reassign slots compactly
+        // Save old slot assignments before clearing
+        const oldSlotAssignments = new Map(heldSlotAssignment.current);
+        
+        // Collect all currently held dice
+        const currentlyHeld: number[] = [];
+        for (let i = 0; i < 5; i++) {
+            if (heldDice[i]) {
+                currentlyHeld.push(i);
+            }
+        }
+        
+        // Reassign all slots compactly: first held die gets slot 0, second gets slot 1, etc.
+        heldSlotAssignment.current.clear();
+        for (let idx = 0; idx < currentlyHeld.length; idx++) {
+            const dieIndex = currentlyHeld[idx];
+            const slotIndex = idx;
+            const wasJustHeld = !prevHeldDice.current[dieIndex];
+            const oldSlot = oldSlotAssignments.get(dieIndex);
+            const slotChanged = oldSlot !== undefined && oldSlot !== slotIndex;
+            
+            heldSlotAssignment.current.set(dieIndex, slotIndex);
+            
+            if (wasJustHeld || slotChanged) {
+                // This die just became held OR its slot changed - start animation to new slot
+                const a = anim.current[dieIndex];
+                a.movingToHeldSlot = true;
+                a.heldSlotTime = 0;
+                a.heldStartPos.copy(positions.current[dieIndex]);
+                a.heldTargetPos.copy(heldSlotPositions[slotIndex]);
+            }
+        }
+        
         prevHeldDice.current = [...heldDice];
 
         for (let i = 0; i < 5; i++) {

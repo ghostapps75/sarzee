@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DiceArena, { DiceArenaHandle } from '@/components/DiceArena';
 import MultiPlayerScorecard from '@/components/MultiPlayerScorecard';
 import SarzeeCelebration from '@/components/SarzeeCelebration';
+import NancyCelebration from '@/components/NancyCelebration';
 import ScorecardModal from '@/components/ScorecardModal';
 import { SarzeeEngine } from '@/lib/SarzeeEngine';
 import { ScoreCategory, GameState, DieValue, GamePhase } from '@/lib/types';
@@ -14,6 +15,33 @@ function computePotentialScores(engine: SarzeeEngine, state: GameState) {
     if (state.scorecard[cat] === null) out[cat] = engine.calculatePotentialScore(cat);
   });
   return out;
+}
+
+// Check if dice form a Nancy: first roll, all different, not a straight
+function isNancy(dice: number[], rollsLeft: number): boolean {
+  // Must be first roll of turn (rollsLeft === 2 means we just did the first roll)
+  if (rollsLeft !== 2) return false;
+  
+  // All 5 dice must be different (no duplicates)
+  const unique = new Set(dice);
+  if (unique.size !== 5) return false;
+  
+  // Must NOT be a small or large straight
+  const sorted = Array.from(unique).sort((a, b) => a - b);
+  let maxSeq = 1;
+  let currentSeq = 1;
+  
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (sorted[i + 1] === sorted[i] + 1) {
+      currentSeq++;
+      maxSeq = Math.max(maxSeq, currentSeq);
+    } else {
+      currentSeq = 1;
+    }
+  }
+  
+  // Not a straight if max sequence is less than 4
+  return maxSeq < 4;
 }
 
 function useSafeAudio(urls: string[]) {
@@ -118,6 +146,7 @@ export default function Page() {
   const [customNames, setCustomNames] = useState<string[]>([]);
 
   const [showCelebration, setShowCelebration] = useState(false);
+  const [showNancyCelebration, setShowNancyCelebration] = useState(false);
   const [mobileScorecardOpen, setMobileScorecardOpen] = useState(false);
 
   // --- dev-only debug panel state ---
@@ -197,10 +226,23 @@ export default function Page() {
     }
 
     // Celebration: if current roll is a Yahtzee visually/emitted
+    // Add 1-second delay before showing celebration
     const vals = results.map((v) => normalizeDie(v));
     if (vals.length === 5 && vals.every((v) => v === vals[0])) {
       setShowCelebration(false);
-      requestAnimationFrame(() => setShowCelebration(true));
+      // Wait 1 second before showing celebration
+      setTimeout(() => {
+        setShowCelebration(true);
+      }, 1000);
+    }
+
+    // Nancy celebration: first roll, all different, not a straight
+    if (gameState && isNancy(vals, gameState.rollsLeft)) {
+      setShowNancyCelebration(false);
+      // Wait 1 second before showing celebration
+      setTimeout(() => {
+        setShowNancyCelebration(true);
+      }, 1000);
     }
 
     // Auto-open scorecard on small devices aka "popup mode" when turn settles
@@ -248,12 +290,28 @@ export default function Page() {
     arenaRef.current.rollToResult(decided, { chaosMs: 1200 });
   };
 
-  const forceSarzee = useCallback(() => {
-    if (!gameState || isRolling) return;
-    if (!arenaRef.current) return;
+  const forceNancy = useCallback(() => {
+    if (!gameState || isRolling) {
+      console.log('forceNancy blocked:', { gameState: !!gameState, isRolling });
+      return;
+    }
+    if (!arenaRef.current) {
+      console.log('forceNancy: no arenaRef');
+      return;
+    }
+    if (gameState.rollsLeft <= 0) {
+      console.log('forceNancy: no rolls left');
+      return;
+    }
+    if (gameState.isGameOver) {
+      console.log('forceNancy: game over');
+      return;
+    }
 
+    console.log('forceNancy: executing');
     const engine = enginesRef.current[activePlayer];
-    const decided = [6, 6, 6, 6, 6];
+    // Roll 5 different dice that don't form a straight (e.g., 1, 2, 4, 5, 6)
+    const decided = [1, 2, 4, 5, 6];
 
     try {
       engine.rollDice(decided as DieValue[]);
@@ -319,9 +377,9 @@ export default function Page() {
 
       const k = e.key.toLowerCase();
       if (k === 'd') setDevPanelOpen((s) => !s);
-      if (k === 's') {
+      if (k === 'n') {
         e.preventDefault();
-        forceSarzee();
+        forceNancy();
       }
       if (k === 'c') {
         e.preventDefault();
@@ -331,7 +389,7 @@ export default function Page() {
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isDev, forceSarzee, triggerCelebration]);
+  }, [isDev, forceNancy, triggerCelebration]);
 
   useEffect(() => {
     if (!isDev) return;
@@ -633,6 +691,16 @@ export default function Page() {
             >
               View Scorecard
             </button>
+
+            {/* Dev: Force Nancy button (only in dev mode) */}
+            {isDev && (
+              <button
+                onClick={forceNancy}
+                className="w-full py-3 rounded-xl bg-red-600/80 text-white font-bold uppercase tracking-wider text-xs border border-red-500/50 active:scale-95"
+              >
+                FORCE NANCY (TEST)
+              </button>
+            )}
           </div>
         </div>
 
@@ -668,7 +736,21 @@ export default function Page() {
           </div>
         </ScorecardModal>
 
-        {/* Celebration / Notifications would go here too if needed */}
+        {/* Celebration for mobile */}
+        {showCelebration && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
+            <div className="pointer-events-auto">
+              <SarzeeCelebration onDismiss={() => setShowCelebration(false)} />
+            </div>
+          </div>
+        )}
+        {showNancyCelebration && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
+            <div className="pointer-events-auto">
+              <NancyCelebration onDismiss={() => setShowNancyCelebration(false)} />
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -744,7 +826,7 @@ export default function Page() {
         {/* Only visible if element query says we have enough space */}
         {canShowEmbedded && (
           <div
-            className="hidden xl:block absolute z-20 pointer-events-none flex flex-col justify-center"
+            className="hidden xl:block absolute z-[60] pointer-events-none flex flex-col justify-center"
             style={SCORECARD_LAYOUT}
           >
             <div className="pointer-events-auto w-full h-full">
@@ -825,15 +907,24 @@ export default function Page() {
             </div>
           )
         }
+        {
+          showNancyCelebration && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
+              <div className="pointer-events-auto">
+                <NancyCelebration onDismiss={() => setShowNancyCelebration(false)} />
+              </div>
+            </div>
+          )
+        }
 
         {
           isDev && (
             <>
               <button
-                onClick={forceSarzee}
+                onClick={forceNancy}
                 className="absolute bottom-[2%] left-[2%] z-[999] bg-red-600/50 hover:bg-red-600 text-white text-[10px] px-2 py-1 rounded font-mono"
               >
-                FORCE SARZEE (S)
+                FORCE NANCY (N)
               </button>
 
               <button
@@ -852,7 +943,7 @@ export default function Page() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="font-mono text-xs opacity-80">DEV DEBUG</div>
-                  <div className="font-mono text-[11px] opacity-70">D = toggle • S = force Sarzee • C = celebration</div>
+                  <div className="font-mono text-[11px] opacity-70">D = toggle • N = force Nancy • C = celebration</div>
                 </div>
                 <button className="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/15" onClick={() => setDevPanelOpen(false)}>
                   ✕
