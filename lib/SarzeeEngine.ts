@@ -21,6 +21,7 @@ export class SarzeeEngine {
             scorecard: emptyScorecard,
             isGameOver: false,
             totalScore: 0,
+            yahtzeeBonus: 0,
         };
     }
 

@@ -681,7 +681,7 @@ export default function Page() {
   // Show orientation warning for tablets in portrait mode (before game state check)
   if (isTabletPortrait) {
     return (
-      <div className="fixed inset-0 w-full h-full bg-black flex items-center justify-center" style={{ height: '100vh', height: '-webkit-fill-available' }}>
+      <div className="fixed inset-0 w-full h-full bg-black flex items-center justify-center" style={{ height: '100vh' }}>
         <div className="text-center text-white p-8 max-w-md mx-4">
           <div className="text-6xl mb-6">📱</div>
           <h2 className="text-3xl font-bold mb-4">Please Rotate Your Device</h2>
@@ -830,7 +830,7 @@ export default function Page() {
   // Show orientation warning for tablets in portrait mode
   if (isTabletPortrait) {
     return (
-      <div className="fixed inset-0 w-full h-full bg-black flex items-center justify-center" style={{ height: '100vh', height: '-webkit-fill-available' }}>
+      <div className="fixed inset-0 w-full h-full bg-black flex items-center justify-center" style={{ height: '100vh' }}>
         <div className="text-center text-white p-8 max-w-md mx-4">
           <div className="text-6xl mb-6">📱</div>
           <h2 className="text-3xl font-bold mb-4">Please Rotate Your Device</h2>
@@ -841,7 +841,7 @@ export default function Page() {
   }
 
   return (
-    <div className="fixed inset-0 w-full h-full overflow-hidden bg-black" style={{ height: '100vh', height: '-webkit-fill-available' }}>
+    <div className="fixed inset-0 w-full h-full overflow-hidden bg-black" style={{ height: '100vh' }}>
       {/* BOARD STAGE - fills entire screen */}
       <div
         ref={stageRef}
@@ -852,7 +852,6 @@ export default function Page() {
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
           minHeight: '100vh',
-          minHeight: '-webkit-fill-available',
         }}
       >
 
