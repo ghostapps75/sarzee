@@ -13,15 +13,31 @@
   --font-handwriting: var(--font-patrick-hand);
 }
 
-html,
+html {
+  height: 100%;
+  height: 100vh;
+  height: -webkit-fill-available; /* iOS Safari fullscreen support */
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 body {
   height: 100%;
+  height: 100vh;
+  height: -webkit-fill-available; /* iOS Safari fullscreen support */
   margin: 0;
   padding: 0;
   background: var(--background);
   color: var(--foreground);
   overflow: hidden;
-  /* important: stops the “scroll and miss clicks” vibe */
+  /* important: stops the "scroll and miss clicks" vibe */
+  /* iOS Safari specific fixes for fullscreen */
+  width: 100%;
+  -webkit-overflow-scrolling: touch;
+  /* Ensure body fills viewport on iOS */
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
 }
 
 body {

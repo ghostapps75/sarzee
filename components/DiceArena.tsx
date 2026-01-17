@@ -29,7 +29,7 @@ interface DiceArenaProps {
     isMobile?: boolean;
 }
 
-const DIE_SIZE = 1.11;
+const DIE_SIZE = 1.15; // Slightly larger than original 1.11, but smaller than 1.4
 const HALF = DIE_SIZE / 2;
 
 // --- TUNING CONSTANTS for START of roll ---
@@ -224,7 +224,7 @@ function AnimatedDiceLayer({
     const offsetX = 1.0;
 
     const positions = useRef<THREE.Vector3[]>(
-        Array.from({ length: 5 }, (_, i) => new THREE.Vector3(offsetX + (i - 2) * 1.6, 0.62, 0))
+        Array.from({ length: 5 }, (_, i) => new THREE.Vector3(offsetX + (i - 2) * 1.65, 0.62, 0)) // Adjusted spacing for smaller dice
     );
     const quats = useRef<THREE.Quaternion[]>(Array.from({ length: 5 }, () => new THREE.Quaternion()));
 
@@ -281,12 +281,12 @@ function AnimatedDiceLayer({
         // Organize held dice in a horizontal row at the bottom of the board
         const bottomZ = -arenaHeight / 2 - 1.0; // Bottom edge
         const centerX = offsetX; // Center horizontally
-        const totalWidth = 4 * 1.4; // Width for 5 dice with spacing
+        const totalWidth = 4 * 1.4; // Width for 5 dice with spacing (adjusted for smaller dice)
         const startX = centerX - totalWidth / 2; // Start position to center the row
         return Array.from({ length: 5 }, (_, i) => {
             return new THREE.Vector3(
-                startX + i * 1.4, // Space them out horizontally
-                0.62,
+                startX + i * 1.4, // Space them out horizontally (adjusted for smaller dice)
+                0.75, // Slightly elevated (increased from 0.62) to ensure held dice are visible above board
                 bottomZ
             );
         });
@@ -318,7 +318,7 @@ function AnimatedDiceLayer({
 
     const reset = () => {
         for (let i = 0; i < 5; i++) {
-            positions.current[i].set(offsetX + (i - 2) * 1.6, 0.62, 0);
+            positions.current[i].set(offsetX + (i - 2) * 1.65, 0.62, 0); // Adjusted spacing for smaller dice
             quats.current[i].identity();
             cancelAnimForDie(i);
             anim.current[i].rollAccum.identity();
@@ -355,8 +355,9 @@ function AnimatedDiceLayer({
         const launchSpread = Math.min(2.0, arenaWidth * LAUNCH_SPREAD_FACTOR);
 
         // PRIORITY 4: Tighten margins to prevent dice from landing outside visual board
-        const marginX = 1.6;  // Increased from 1.35
-        const marginZ = 1.8;  // Increased from 1.65
+        // Increased margins significantly to ensure dice stay well within visible board area
+        const marginX = 3.5;  // Significantly increased, especially for left side which was problematic
+        const marginZ = 3.2;  // Increased to ensure safe distance from edges
         const xMin = offsetX - arenaWidth / 2 + marginX;
         const xMax = offsetX + arenaWidth / 2 - marginX;
         const zMin = -arenaHeight / 2 + marginZ;
@@ -382,7 +383,7 @@ function AnimatedDiceLayer({
         const land = generateLandingPoints({
             count: nonHeldCount,
             rng,
-            minDist: 1.35,
+            minDist: 1.4, // Adjusted for smaller dice size
             xMin,
             xMax,
             zMin,
@@ -515,6 +516,12 @@ function AnimatedDiceLayer({
                 const a = anim.current[i];
                 a.movingToHeldSlot = false;
                 a.heldSlotTime = 0;
+                
+                // Move unheld die back to a safe position on the main board area
+                // Position it in a clear area to avoid being behind other held dice
+                const safeX = offsetX + (i - 2) * 1.65;
+                const safeZ = 0; // Center of board
+                positions.current[i].set(safeX, 0.62, safeZ); // Ensure Y is at board level
             }
         }
         
@@ -842,8 +849,8 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
     }, [feltAspect, arenaWorldHeight]);
 
     // PRIORITY 1: Performance mode for mobile - disable expensive features
-    const cameraY = 18;
-    const cameraFov = 48;
+    const cameraY = 17; // Adjusted for smaller dice - closer than original 18 but not as close as 15
+    const cameraFov = 47; // Slightly reduced from original 48
 
     return (
         <div className="w-full h-full relative">

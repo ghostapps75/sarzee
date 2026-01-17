@@ -103,7 +103,7 @@ const FELT_ASPECT = (BASE_W - 2 * INSET_X_BASE) / (BASE_H - 2 * INSET_Y_BASE);
 
 const normalizeDie = (v: number) => Math.max(1, Math.min(6, Math.round(v)));
 
-const SCORECARD_LAYOUT = { left: '74%', top: '6%', width: '22%', height: '86%' };
+const SCORECARD_LAYOUT = { left: '74%', top: '1%', width: '22%', height: '98%' }; // Maximized height to 98% and reduced top to 1% to show full scorecard
 
 // Dynamic imports for export tools to avoid SSR issues
 const importExportTools = async () => {
@@ -125,6 +125,13 @@ export default function Page() {
   }, []);
 
   const isMobilePortrait = windowSize ? (windowSize.w < 768 && windowSize.h > windowSize.w) : false;
+  
+  // Detect iPad/tablet (width >= 768px, typically tablets/iPads)
+  const isTablet = windowSize ? (windowSize.w >= 768 && windowSize.w < 1200) : false;
+  
+  // Check if device is in portrait orientation (should be locked to landscape for tablets)
+  const isPortraitOrientation = windowSize ? (windowSize.h > windowSize.w) : false;
+  const isTabletPortrait = isTablet && isPortraitOrientation;
 
   // Embedded score logic (Element Query based - still useful for Desktop sizing)
   const [canShowEmbedded, setCanShowEmbedded] = useState(true);
@@ -144,6 +151,7 @@ export default function Page() {
 
   const [setupStep, setSetupStep] = useState<'COUNT' | 'NAMES'>('COUNT');
   const [customNames, setCustomNames] = useState<string[]>([]);
+  const [playerDiceColors, setPlayerDiceColors] = useState<string[]>([]); // Array of colors, one per player
 
   const [showCelebration, setShowCelebration] = useState(false);
   const [showNancyCelebration, setShowNancyCelebration] = useState(false);
@@ -163,7 +171,14 @@ export default function Page() {
   const selectPlayerCount = (count: number) => {
     setPlayerCount(count);
     setCustomNames(Array.from({ length: count }, (_, i) => `Player ${i + 1}`));
+    setPlayerDiceColors(Array.from({ length: count }, () => '#FFFFFF')); // Default all to white
     setSetupStep('NAMES');
+  };
+
+  const selectPlayerDiceColor = (playerIndex: number, color: string) => {
+    const newColors = [...playerDiceColors];
+    newColors[playerIndex] = color;
+    setPlayerDiceColors(newColors);
   };
 
   const commitStartGame = () => {
@@ -189,6 +204,7 @@ export default function Page() {
     setPhase('SETUP');
     setSetupStep('COUNT');
     setCustomNames([]);
+    setPlayerDiceColors([]);
     setIsRolling(false);
     setShowCelebration(false);
     setMobileScorecardOpen(false);
@@ -363,7 +379,8 @@ export default function Page() {
 
     if (s.isGameOver) {
       setPhase('GAME_OVER');
-      setMobileScorecardOpen(true);
+      // Don't auto-open modal on desktop - let user click scorecard button if they want it
+      // On mobile, the scorecard is already accessible via the button
     }
   };
 
@@ -525,14 +542,17 @@ export default function Page() {
         const { width, height } = entry.contentRect;
         setBoardDims({ w: width, h: height });
         // Logic: Can we fit the embedded scorecard?
-        // Tuned threshold: 900x520 seems reasonable for the layout
-        const fits = width >= 900 && height >= 520;
-        setCanShowEmbedded(fits);
+        // For tablets/iPads, use lower threshold (768px) to always show embedded scorecard
+        // For desktop, use 900x520 threshold
+        const threshold = isTablet ? 768 : 900;
+        const fits = width >= threshold && height >= 520;
+        // Force embedded mode for tablets/iPads (always show scorecard on screen)
+        setCanShowEmbedded(fits || isTablet);
       }
     });
     observer.observe(stageRef.current);
     return () => observer.disconnect();
-  }, [phase]); // Re-bind if phase changes mount status
+  }, [phase, isTablet]); // Re-bind if phase changes mount status
 
   const [fallbackRect, setFallbackRect] = useState<Rect | null>(null);
   useEffect(() => {
@@ -561,18 +581,21 @@ export default function Page() {
           }}
         />
         <div className="relative z-10 w-full h-full flex items-center justify-center">
-          <div className="bg-slate-900/80 backdrop-blur-xl px-14 py-10 rounded-2xl border border-white/10 shadow-2xl text-center">
-            <h1 className="text-5xl font-black mb-6 text-white">SARZEE</h1>
+          <div className="bg-[#1a1612]/95 backdrop-blur-md px-16 py-12 rounded-2xl border-2 border-amber-900/40 shadow-2xl text-center max-w-3xl mx-4" style={{ boxShadow: '0 20px 60px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1)' }}>
+            <h1 className="text-6xl font-black mb-8 bg-gradient-to-r from-amber-300 via-yellow-500 to-amber-400 bg-clip-text text-transparent drop-shadow-lg" style={{ textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)' }}>
+              SARZEE
+            </h1>
 
             {setupStep === 'COUNT' && (
               <>
-                <div className="text-white/80 text-xl mb-8">How many players?</div>
-                <div className="flex gap-4 justify-center mb-8">
+                <div className="text-amber-100 text-xl mb-10 font-medium tracking-wide">How many players?</div>
+                <div className="flex gap-6 justify-center mb-8">
                   {[1, 2, 3, 4].map((n) => (
                     <button
                       key={n}
                       onClick={() => selectPlayerCount(n)}
-                      className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg text-2xl transition-transform active:scale-95"
+                      className="w-20 h-20 bg-gradient-to-b from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-amber-100 font-bold rounded-xl shadow-xl text-3xl transition-all transform hover:scale-110 active:scale-95 border-2 border-amber-500/30 hover:border-amber-400/50"
+                      style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)' }}
                     >
                       {n}
                     </button>
@@ -583,25 +606,61 @@ export default function Page() {
 
             {setupStep === 'NAMES' && (
               <>
-                <div className="text-white/80 text-xl mb-6">Enter player names</div>
-                <div className="flex flex-col gap-3 mb-8">
-                  {customNames.map((name, idx) => (
-                    <input
-                      key={idx}
-                      value={name}
-                      onChange={(e) => {
-                        const next = [...customNames];
-                        next[idx] = e.target.value;
-                        setCustomNames(next);
-                      }}
-                      className="bg-slate-800 border border-slate-600 rounded px-4 py-3 text-center text-white text-xl focus:border-blue-500 outline-none"
-                      maxLength={10}
-                    />
-                  ))}
+                <div className="text-amber-100 text-xl mb-6 font-medium tracking-wide">Enter player names & choose dice colors</div>
+                <div className="flex flex-col gap-5 mb-8 max-w-2xl mx-auto">
+                  {customNames.map((name, idx) => {
+                    const playerColor = playerDiceColors[idx] || '#FFFFFF';
+                    const diceColorOptions = [
+                      { hex: '#FFFFFF', title: 'White' },
+                      { hex: '#FFA366', title: 'Orange' },
+                      { hex: '#7C4A00', title: 'Brown' },
+                      { hex: '#87CEEB', title: 'Light Blue' },
+                      { hex: '#D4AF37', title: 'Gold' },
+                      { hex: '#1A1A1A', title: 'Black' },
+                    ];
+                    return (
+                      <div key={idx} className="flex items-center gap-3">
+                        <input
+                          value={name}
+                          onChange={(e) => {
+                            const next = [...customNames];
+                            next[idx] = e.target.value;
+                            setCustomNames(next);
+                          }}
+                          onFocus={(e) => e.target.select()}
+                          className="flex-1 bg-amber-950/80 border-2 border-amber-800/50 rounded-lg px-4 py-3 text-center text-amber-100 text-lg focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 placeholder:text-amber-700/50"
+                          placeholder={`Player ${idx + 1}`}
+                          maxLength={10}
+                        />
+                        <div className="flex gap-2">
+                          {diceColorOptions.map((colorOption) => (
+                            <button
+                              key={colorOption.hex}
+                              onClick={() => selectPlayerDiceColor(idx, colorOption.hex)}
+                              className={`w-10 h-10 rounded-lg border-2 transition-all transform hover:scale-110 active:scale-95 ${
+                                playerColor === colorOption.hex ? 'border-amber-400 shadow-lg scale-110' : 'border-amber-700/50'
+                              }`}
+                              style={{ backgroundColor: colorOption.hex, boxShadow: playerColor === colorOption.hex ? '0 4px 8px rgba(0, 0, 0, 0.4)' : '0 2px 4px rgba(0, 0, 0, 0.3)' }}
+                              title={colorOption.title}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-center gap-4 mb-6">
+                  <button
+                    onClick={() => setSetupStep('COUNT')}
+                    className="text-amber-400/80 hover:text-amber-300 text-sm underline transition-colors"
+                  >
+                    ← Back
+                  </button>
                 </div>
                 <button
                   onClick={commitStartGame}
-                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-lg shadow-lg text-xl transition-transform active:scale-95"
+                  className="bg-gradient-to-r from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-amber-100 font-bold py-4 px-12 rounded-xl shadow-xl text-xl transition-all transform hover:scale-105 active:scale-95 border-2 border-amber-500/30 hover:border-amber-400/50"
+                  style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)' }}
                 >
                   Start Game
                 </button>
@@ -619,8 +678,20 @@ export default function Page() {
     // Handled by overlay below
   }
 
-  if (!gameState) return null;
+  // Show orientation warning for tablets in portrait mode (before game state check)
+  if (isTabletPortrait) {
+    return (
+      <div className="fixed inset-0 w-full h-full bg-black flex items-center justify-center" style={{ height: '100vh', height: '-webkit-fill-available' }}>
+        <div className="text-center text-white p-8 max-w-md mx-4">
+          <div className="text-6xl mb-6">📱</div>
+          <h2 className="text-3xl font-bold mb-4">Please Rotate Your Device</h2>
+          <p className="text-xl text-gray-300">This game is designed for landscape orientation. Please rotate your device to continue playing.</p>
+        </div>
+      </div>
+    );
+  }
 
+  if (!gameState) return null;
 
   if (isMobilePortrait && windowSize) {
     const canRoll = !isRolling && gameState.rollsLeft > 0 && !gameState.isGameOver;
@@ -642,6 +713,7 @@ export default function Page() {
               heldDice={gameState.heldDice}
               onDieClick={handleDieClick}
               canInteract={canInteractDice}
+              diceColor={playerDiceColors[activePlayer] || '#FFFFFF'}
               // Aspect of this container (w / (h*0.6))
               feltAspect={windowSize.w / (windowSize.h * 0.6)}
               showDebugNumbers={isDev && showDieNumbers}
@@ -755,22 +827,34 @@ export default function Page() {
     );
   }
 
-  return (
-    <div className="w-screen h-screen overflow-hidden bg-black flex items-center justify-center">
+  // Show orientation warning for tablets in portrait mode
+  if (isTabletPortrait) {
+    return (
+      <div className="fixed inset-0 w-full h-full bg-black flex items-center justify-center" style={{ height: '100vh', height: '-webkit-fill-available' }}>
+        <div className="text-center text-white p-8 max-w-md mx-4">
+          <div className="text-6xl mb-6">📱</div>
+          <h2 className="text-3xl font-bold mb-4">Please Rotate Your Device</h2>
+          <p className="text-xl text-gray-300">This game is designed for landscape orientation. Please rotate your device to continue playing.</p>
+        </div>
+      </div>
+    );
+  }
 
-        {/* BOARD STAGE */}
+  return (
+    <div className="fixed inset-0 w-full h-full overflow-hidden bg-black" style={{ height: '100vh', height: '-webkit-fill-available' }}>
+      {/* BOARD STAGE - fills entire screen */}
       <div
         ref={stageRef}
-        className="relative w-full max-w-[1600px] shadow-2xl bg-[#0a0a0a]"
-        style={{ aspectRatio: `${BASE_W}/${BASE_H}` }}
+        className="absolute inset-0 w-full h-full shadow-2xl bg-[#0a0a0a]"
+        style={{
+          backgroundImage: 'url(/textures/board_texture.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          minHeight: '100vh',
+          minHeight: '-webkit-fill-available',
+        }}
       >
-        {/* 1. BACKGROUND TEXTURE */}
-        <img
-          src="/textures/board_texture.jpg"
-          alt="Board"
-          className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none z-0"
-          draggable={false}
-        />
 
         {/* 2. DICE ARENA (Felt Area) */}
         <div
@@ -791,6 +875,7 @@ export default function Page() {
             heldDice={gameState.heldDice}
             onDieClick={handleDieClick}
             canInteract={canInteractDice}
+            diceColor={playerDiceColors[activePlayer] || '#FFFFFF'}
             feltAspect={FELT_ASPECT}
             showDebugNumbers={isDev && showDieNumbers}
             isMobile={isMobilePortrait}
@@ -823,25 +908,18 @@ export default function Page() {
         </div>
 
         {/* 4. SCORECARD (Right Rail) */}
-        {/* Only visible if element query says we have enough space */}
+        {/* Only visible if element query says we have enough space - show on tablets (md) and up */}
         {canShowEmbedded && (
           <div
-            className="hidden xl:block absolute z-[60] pointer-events-none flex flex-col justify-center"
+            className="hidden md:block absolute z-[60] pointer-events-none flex flex-col justify-center"
             style={SCORECARD_LAYOUT}
           >
             <div className="pointer-events-auto w-full h-full">
-              <div ref={scorecardRef} className="w-full h-full flex flex-col gap-4">
+              <div ref={scorecardRef} className="w-full h-full flex flex-col gap-4 overflow-y-auto" style={{ maxHeight: '100%' }}>
                 {phase === 'GAME_OVER' && (
                   <div className="bg-slate-900/90 text-white p-4 rounded-xl border border-white/20 shadow-xl backdrop-blur-md mb-2 shrink-0">
-                    <div className="text-center mb-4 border-b border-white/10 pb-4">
-                      <h2 className="text-xl font-black mb-1">FINAL RESULTS</h2>
-                      <div className="text-emerald-400 font-bold text-lg">
-                        {playerCount === 1 ? `Score: ${totals[0]}` : `P1: ${totals[0]} - P2: ${totals[1]}`}
-                      </div>
-                    </div>
                     <div className="flex items-center justify-between gap-2 helper-exclude-pdf">
-                      <button onClick={resetAll} className="bg-blue-600 text-white font-bold py-1 px-3 rounded text-sm">New Game</button>
-                      <button onClick={() => handleDownload()} className="bg-slate-700 text-white font-semibold py-1 px-3 rounded text-sm">PDF</button>
+                      <button onClick={() => handleDownload()} className="bg-slate-700 hover:bg-slate-600 text-white font-semibold py-1 px-3 rounded text-sm transition-colors">Download PDF</button>
                     </div>
                   </div>
                 )}
@@ -916,6 +994,86 @@ export default function Page() {
             </div>
           )
         }
+
+        {/* GAME OVER OVERLAY - Floating messages with board visible */}
+        {phase === 'GAME_OVER' && (() => {
+          // Calculate player rankings
+          const playersWithScores = totals.map((score, idx) => ({
+            index: idx,
+            name: names[idx] || `Player ${idx + 1}`,
+            score
+          }));
+          playersWithScores.sort((a, b) => b.score - a.score);
+          const winnerIndex = playersWithScores[0].index;
+          const userRank = playersWithScores.findIndex(p => p.index === activePlayer) + 1;
+          const userPlayer = playersWithScores.find(p => p.index === activePlayer);
+
+          return (
+            <>
+              {/* Floating Game Over Message */}
+              <div className="absolute inset-0 z-[70] flex items-center justify-center pointer-events-none">
+                <div className="pointer-events-auto animate-in fade-in-50 duration-700">
+                  <div className="bg-slate-900/95 backdrop-blur-xl p-8 rounded-2xl border-2 border-yellow-500/40 shadow-2xl text-center max-w-lg mx-4">
+                    {/* Trophy for winner */}
+                    {userRank === 1 && (
+                      <div className="text-6xl mb-4 animate-bounce">🏆</div>
+                    )}
+                    
+                    <h2 className="text-4xl font-black mb-4 bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent">
+                      {userRank === 1 ? 'YOU WON!' : 
+                       userRank === 2 ? 'YOU CAME 2ND' : 
+                       userRank === 3 ? 'YOU CAME 3RD' : 
+                       `YOU CAME ${userRank}TH`}
+                    </h2>
+                    
+                    {/* Leaderboard / Final Scores */}
+                    <div className="mt-6 space-y-3">
+                      <div className="text-white/70 text-sm uppercase tracking-widest mb-3">Final Scores</div>
+                      {playersWithScores.map((player, rank) => (
+                        <div
+                          key={player.index}
+                          className={`flex items-center justify-between px-4 py-3 rounded-lg transition-all ${
+                            rank === 0
+                              ? 'bg-yellow-500/20 border-2 border-yellow-500/50 shadow-lg'
+                              : player.index === activePlayer
+                              ? 'bg-blue-500/10 border border-blue-500/30'
+                              : 'bg-slate-800/50 border border-slate-700/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl font-bold text-white/80">
+                              {rank === 0 ? '🥇' : rank === 1 ? '🥈' : rank === 2 ? '🥉' : `#${rank + 1}`}
+                            </span>
+                            <span className={`font-bold ${
+                              rank === 0 ? 'text-yellow-400' : player.index === activePlayer ? 'text-blue-400' : 'text-white/80'
+                            }`}>
+                              {player.name}
+                            </span>
+                          </div>
+                          <span className={`text-xl font-black ${
+                            rank === 0 ? 'text-yellow-400' : 'text-white'
+                          }`}>
+                            {player.score} pts
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* New Game Button - Styled side button */}
+              <div className="absolute bottom-[8%] left-[8%] z-[70] pointer-events-none">
+                <button
+                  onClick={resetAll}
+                  className="pointer-events-auto px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-bold text-lg rounded-xl shadow-xl hover:shadow-2xl transition-all transform hover:scale-105 active:scale-95 border-2 border-blue-400/30"
+                >
+                  New Game
+                </button>
+              </div>
+            </>
+          );
+        })()}
 
         {
           isDev && (
@@ -994,19 +1152,13 @@ export default function Page() {
                 <div className="mt-4 pt-4 border-t border-white/10">
                   <button
                     onClick={() => {
-                      enginesRef.current.forEach((e, i) => e.debugSetNearEndgame(12345 + i));
-                      // Refresh UI to match current player's new state
-                      const engine = enginesRef.current[activePlayer];
-                      const s = engine.getGameState();
-                      setGameState(s);
-                      setPotentialScores({} as any);
-                      setIsRolling(false);
-                      arenaRef.current?.reset();
+                      // Simple: Just set game to over state to test end-of-game UI
+                      setPhase('GAME_OVER');
                       setDevPanelOpen(false); // Close panel to see result
                     }}
                     className="w-full bg-amber-600/80 hover:bg-amber-600 py-2 rounded text-xs font-bold uppercase tracking-wider"
                   >
-                    Jump to Final Turn
+                    Jump to Game Over
                   </button>
                 </div>
               </div>
@@ -1016,33 +1168,37 @@ export default function Page() {
       </div>
 
       {/* MOBILE OVERLAYS (Outside Stage? Or Inside? Inside is safer for pure container app, but Fixed works for modal) */}
-      {/* MOBILE OVERLAYS (Portal) */}
-      <ScorecardModal
-        isOpen={mobileScorecardOpen}
-        onClose={() => setMobileScorecardOpen(false)}
-      >
-        <div className="flex flex-col gap-4 p-4 text-white">
-          {/* Mobile Game Over */}
-          {phase === 'GAME_OVER' && (
-            <div className="bg-slate-900 text-white p-4 rounded-xl border border-white/20 shadow-xl shrink-0">
-              <h2 className="text-xl font-black mb-2 text-center">GAME OVER</h2>
-              <button onClick={resetAll} className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">Play Again</button>
-            </div>
-          )}
-          <MultiPlayerScorecard
-            playerNames={names}
-            scorecards={scorecards}
-            yahtzeeBonuses={yahtzeeBonuses}
-            totals={totals}
-            activePlayerIndex={activePlayer}
-            potentialScores={potentialScores}
-            canSelectCategory={canSelectCategory}
-            onSelectCategory={handleCategorySelect}
-            mustPick={gameState.rollsLeft === 0}
-            className="flex-1 w-full"
-          />
-        </div>
-      </ScorecardModal>
+      {/* MOBILE OVERLAYS (Portal) - Only show modal if not embedded (mobile) */}
+      {!canShowEmbedded && (
+        <ScorecardModal
+          isOpen={mobileScorecardOpen}
+          onClose={() => setMobileScorecardOpen(false)}
+        >
+          <div className="flex flex-col gap-4 p-4 text-white">
+            {/* Mobile Game Over - Simplified header */}
+            {phase === 'GAME_OVER' && (
+              <div className="bg-slate-900/90 text-white p-4 rounded-xl border border-white/20 shadow-xl shrink-0">
+                <div className="flex items-center justify-between gap-2 helper-exclude-pdf">
+                  <button onClick={resetAll} className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-bold py-2 px-4 rounded-lg text-sm transition-all">New Game</button>
+                  <button onClick={() => handleDownload()} className="bg-slate-700 hover:bg-slate-600 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">Download PDF</button>
+                </div>
+              </div>
+            )}
+            <MultiPlayerScorecard
+              playerNames={names}
+              scorecards={scorecards}
+              yahtzeeBonuses={yahtzeeBonuses}
+              totals={totals}
+              activePlayerIndex={activePlayer}
+              potentialScores={potentialScores}
+              canSelectCategory={canSelectCategory}
+              onSelectCategory={handleCategorySelect}
+              mustPick={gameState.rollsLeft === 0}
+              className="flex-1 w-full"
+            />
+          </div>
+        </ScorecardModal>
+      )}
     </div>
   );
 }

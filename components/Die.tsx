@@ -21,21 +21,21 @@ interface DieProps {
     onClick: () => void;
 }
 
-const DIE_SIZE = 1.11;
+const DIE_SIZE = 1.15; // Slightly larger than original 1.11, but smaller than 1.4
 const HALF = DIE_SIZE / 2;
 
-const PIP_RADIUS = 0.085;
-const PIP_HEIGHT = 0.02;
+const PIP_RADIUS = 0.09; // Proportionally adjusted for new size
+const PIP_HEIGHT = 0.022; // Slightly adjusted
 const PIP_CENTER_Y = HALF + 0.015;
 
-const Pip = ({ position }: { position: [number, number, number] }) => (
+const Pip = ({ position, pipColor }: { position: [number, number, number]; pipColor?: string }) => (
     <mesh position={position} raycast={() => null}>
         <cylinderGeometry args={[PIP_RADIUS, PIP_RADIUS, PIP_HEIGHT, 32]} />
-        <meshBasicMaterial color="#111111" toneMapped={false} />
+        <meshBasicMaterial color={pipColor || '#111111'} toneMapped={false} />
     </mesh>
 );
 
-const Face = ({ value, rotation }: { value: number; rotation: [number, number, number] }) => {
+const Face = ({ value, rotation, pipColor }: { value: number; rotation: [number, number, number]; pipColor?: string }) => {
     const offset = 0.24;
 
     const pips = useMemo(() => {
@@ -84,7 +84,7 @@ const Face = ({ value, rotation }: { value: number; rotation: [number, number, n
     return (
         <group rotation={rotation} position={[0, 0, 0]} raycast={() => null}>
             {pips.map((pos, i) => (
-                <Pip key={i} position={[pos[0], PIP_CENTER_Y, pos[2]]} />
+                <Pip key={i} position={[pos[0], PIP_CENTER_Y, pos[2]]} pipColor={pipColor} />
             ))}
         </group>
     );
@@ -106,11 +106,15 @@ function computeValueFromQuaternion(q: THREE.Quaternion) {
 }
 
 const Die = forwardRef<DieHandle, DieProps>(
-    ({ position, quaternion, isHeld, color = '#F5F5DC', showDebugNumber = false, canClick, onClick }, ref) => {
+    ({ position, quaternion, isHeld, color = '#FFFFFF', showDebugNumber = false, canClick, onClick }, ref) => {
         const [playPop] = useSound('/sounds/pop.mp3', { volume: 0.5 });
 
         const groupRef = useRef<THREE.Group>(null);
         const [debugValue, setDebugValue] = useState(1);
+
+        // Use white pips for colored dice, black for white dice
+        const isColoredDice = color !== '#FFFFFF';
+        const pipColor = isColoredDice ? '#FFFFFF' : '#111111';
 
         // IMPORTANT: copy pose into the actual Three object each frame
         useFrame(() => {
@@ -156,21 +160,26 @@ const Die = forwardRef<DieHandle, DieProps>(
                     onPointerOut={() => (document.body.style.cursor = 'default')}
                     visible
                 >
-                    <boxGeometry args={[1.2, 1.2, 1.2]} />
+                    <boxGeometry args={[1.3, 1.3, 1.3]} /> {/* Adjusted for smaller dice size */}
                     <meshBasicMaterial transparent opacity={0} />
                 </mesh>
 
                 <group raycast={() => null}>
                     <RoundedBox args={[DIE_SIZE, DIE_SIZE, DIE_SIZE]} radius={0.14} smoothness={8}>
-                        <meshStandardMaterial color={isHeld ? '#fbbf24' : color} roughness={0.25} metalness={0.08} />
+                        <meshStandardMaterial 
+                            color={isHeld ? '#fbbf24' : color} 
+                            roughness={0.15} 
+                            metalness={0.3} 
+                            envMapIntensity={1.2}
+                        />
                     </RoundedBox>
 
-                    <Face value={1} rotation={[0, 0, 0]} />
-                    <Face value={6} rotation={[Math.PI, 0, 0]} />
-                    <Face value={2} rotation={[Math.PI / 2, 0, 0]} />
-                    <Face value={5} rotation={[-Math.PI / 2, 0, 0]} />
-                    <Face value={3} rotation={[0, 0, -Math.PI / 2]} />
-                    <Face value={4} rotation={[0, 0, Math.PI / 2]} />
+                    <Face value={1} rotation={[0, 0, 0]} pipColor={pipColor} />
+                    <Face value={6} rotation={[Math.PI, 0, 0]} pipColor={pipColor} />
+                    <Face value={2} rotation={[Math.PI / 2, 0, 0]} pipColor={pipColor} />
+                    <Face value={5} rotation={[-Math.PI / 2, 0, 0]} pipColor={pipColor} />
+                    <Face value={3} rotation={[0, 0, -Math.PI / 2]} pipColor={pipColor} />
+                    <Face value={4} rotation={[0, 0, Math.PI / 2]} pipColor={pipColor} />
                 </group>
             </group>
         );

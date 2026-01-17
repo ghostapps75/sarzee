@@ -22,6 +22,17 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://sarzee.netlify.app'),
   title: "Sarzee - Multiplayer Dice Game",
   description: "Play Sarzee, the ultimate multiplayer dice game with realistic physics. Roll 5-of-a-kind to win big!",
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+    viewportFit: 'cover', // Enables fullscreen-like experience on iPad
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+  },
   openGraph: {
     title: "Sarzee - Multiplayer Dice Game",
     description: "Play Sarzee with friends! Realistic 3D dice rolling and handwritten scoring.",
@@ -41,9 +52,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${patrickHand.variable} antialiased`}
+        suppressHydrationWarning
       >
         {children}
       </body>
