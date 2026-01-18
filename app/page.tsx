@@ -156,13 +156,13 @@ export default function Page() {
 
   // Board options mapping
   const boardOptions = [
-    { id: 'the-cafe', name: 'The Cafe', file: 'board_texture.jpg' },
+    { id: 'the-cafe', name: 'Cafe', file: 'board_texture.jpg' },
+    { id: 'the-emerald-forest', name: 'Emerald Forest', file: 'emeraldforest_board.jpg' },
+    { id: 'the-forge', name: 'Forge', file: 'forge.jpg' },
     { id: 'franklins-tower', name: "Franklin's Tower", file: 'gd_board.JPG' },
-    { id: 'the-forge', name: 'The Forge', file: 'forge.jpg' },
-    { id: 'the-emerald-forest', name: 'The Emerald Forest', file: 'emeraldforest_board.jpg' },
-    { id: 'the-urban-tech', name: 'The Urban Tech', file: 'urbantech_board.jpg' },
-    { id: 'the-map-room', name: 'The Map Room', file: 'maproom_board.jpg' },
+    { id: 'the-map-room', name: 'Map Room', file: 'maproom_board.jpg' },
     { id: 'pirates-cove', name: 'Pirates Cove', file: 'pirate_board.jpg' },
+    { id: 'space-mission', name: 'Space Missions', file: 'space_mission_board.jpg' },
   ];
 
   const [showCelebration, setShowCelebration] = useState(false);
@@ -184,13 +184,13 @@ export default function Page() {
 
   // Board-specific dice colors
   const boardDiceColors: Record<string, string[]> = {
-    'the-cafe': ['#FFFFFF', '#FFFFFF', '#FFFFFF', '#FFFFFF'], // White (default, user chooses)
-    'franklins-tower': ['#DC143C', '#FFFFFF', '#1E90FF', '#FFD700'], // Red, White, Blue, Yellow
-    'the-emerald-forest': ['#228B22', '#9370DB', '#8B4513', '#FFFFFF'], // Green, Purple, Brown, White
-    'the-forge': ['#1A0A00', '#FF3300', '#FFB366', '#FFFFFF'], // Dark Brown-Black, Bright Red, Very Light Orange, Bright White
-    'the-map-room': ['#8B4513', '#A0522D', '#FFFFFF', '#D2B48C'], // Brown (dark), Brown (light), White, Tan/Wooden
-    'the-urban-tech': ['#D0C8E8', '#B0A8D0', '#7A6A9A', '#E8E0F8'], // Silvery Lavender, Metallic Purple, Deep Purple, Light Silver-Purple
-    'pirates-cove': ['#FD8F08', '#71DC78', '#ECBB80', '#112595'], // Orange, Green, Tan, Navy Blue
+    'the-cafe': ['#3B2820', '#F2E6D8', '#2A8CA1', '#7D9652'], // Dark Brown, Cream/Off-White, Teal Blue, Sage Green
+    'franklins-tower': ['#C01E32', '#2056A2', '#E68A00', '#1E8F4B'], // Crimson Red, Royal Blue, Golden Amber, Emerald Green
+    'the-emerald-forest': ['#E6AF2E', '#4ABFAC', '#C05746', '#2E4830'], // Runic Amber, Spirit Wisp, Forest Rust, Deep Canopy
+    'the-forge': ['#FF8C00', '#1C1C1C', '#8A2323', '#4A5D6E'], // Bright Glowing Orange, Near Black/Charcoal, Deep Ember Red, Steel Blue-Grey
+    'the-map-room': ['#649C8F', '#D9B056', '#8C2B2B', '#273C52'], // Verdigris Green, Antique Brass, Burgundy Red, Slate Navy
+    'pirates-cove': ['#1A4F8B', '#D4AF37', '#A81B1B', '#E8DCC2'], // Ocean Blue, Doubloon Gold, Pirate Red, Aged Bone
+    'space-mission': ['#211A45', '#4DEEEA', '#C77DF3', '#FCA311'], // Dark Indigo, Electric Cyan, Cosmic Purple, Amber/Orange
   };
   
   const selectPlayerCount = (count: number) => {
@@ -199,14 +199,9 @@ export default function Page() {
     
     // Assign themed dice colors based on selected board
     const themeColors = boardDiceColors[selectedBoard] || boardDiceColors['the-cafe'];
-    if (selectedBoard === 'the-cafe') {
-      // For The Cafe, default all to white (user can customize)
-      setPlayerDiceColors(Array.from({ length: count }, () => '#FFFFFF'));
-    } else {
-      // For themed boards, cycle through their color palette
-      const colors = Array.from({ length: count }, (_, i) => themeColors[i % themeColors.length]);
-      setPlayerDiceColors(colors);
-    }
+    // For all themed boards, cycle through their color palette
+    const colors = Array.from({ length: count }, (_, i) => themeColors[i % themeColors.length]);
+    setPlayerDiceColors(colors);
     setSetupStep('NAMES');
   };
 
@@ -697,54 +692,59 @@ export default function Page() {
                       switch (boardId) {
                         case 'franklins-tower':
                           return [
-                            { hex: '#DC143C', title: 'Red' },
-                            { hex: '#FFFFFF', title: 'White' },
-                            { hex: '#1E90FF', title: 'Blue' },
-                            { hex: '#FFD700', title: 'Yellow' },
+                            { hex: '#C01E32', title: 'Crimson Red' },
+                            { hex: '#2056A2', title: 'Royal Blue' },
+                            { hex: '#E68A00', title: 'Golden Amber' },
+                            { hex: '#1E8F4B', title: 'Emerald Green' },
                           ];
                         case 'the-emerald-forest':
                           return [
-                            { hex: '#228B22', title: 'Green' },
-                            { hex: '#9370DB', title: 'Purple' },
-                            { hex: '#8B4513', title: 'Brown' },
-                            { hex: '#FFFFFF', title: 'White' },
+                            { hex: '#E6AF2E', title: 'Runic Amber' },
+                            { hex: '#4ABFAC', title: 'Spirit Wisp' },
+                            { hex: '#C05746', title: 'Forest Rust' },
+                            { hex: '#2E4830', title: 'Deep Canopy' },
                           ];
                         case 'the-forge':
                           return [
-                            { hex: '#1A0A00', title: 'Dark Brown-Black' },
-                            { hex: '#FF3300', title: 'Bright Red' },
-                            { hex: '#FFB366', title: 'Very Light Orange' },
-                            { hex: '#FFFFFF', title: 'Bright White' },
+                            { hex: '#FF8C00', title: 'Bright Glowing Orange' },
+                            { hex: '#1C1C1C', title: 'Near Black/Charcoal' },
+                            { hex: '#8A2323', title: 'Deep Ember Red' },
+                            { hex: '#4A5D6E', title: 'Steel Blue-Grey' },
                           ];
                         case 'the-map-room':
                           return [
-                            { hex: '#8B4513', title: 'Brown (Dark)' },
-                            { hex: '#A0522D', title: 'Brown (Light)' },
-                            { hex: '#FFFFFF', title: 'White' },
-                            { hex: '#D2B48C', title: 'Wooden' },
-                          ];
-                        case 'the-urban-tech':
-                          return [
-                            { hex: '#D0C8E8', title: 'Silvery Lavender' },
-                            { hex: '#B0A8D0', title: 'Metallic Purple' },
-                            { hex: '#7A6A9A', title: 'Deep Purple' },
-                            { hex: '#E8E0F8', title: 'Light Silver-Purple' },
+                            { hex: '#649C8F', title: 'Verdigris Green' },
+                            { hex: '#D9B056', title: 'Antique Brass' },
+                            { hex: '#8C2B2B', title: 'Burgundy Red' },
+                            { hex: '#273C52', title: 'Slate Navy' },
                           ];
                         case 'pirates-cove':
                           return [
-                            { hex: '#FD8F08', title: 'Orange' },
-                            { hex: '#71DC78', title: 'Green' },
-                            { hex: '#ECBB80', title: 'Tan' },
-                            { hex: '#112595', title: 'Navy Blue' },
+                            { hex: '#1A4F8B', title: 'Ocean Blue' },
+                            { hex: '#D4AF37', title: 'Doubloon Gold' },
+                            { hex: '#A81B1B', title: 'Pirate Red' },
+                            { hex: '#E8DCC2', title: 'Aged Bone' },
                           ];
-                        default: // the-cafe
+                        case 'space-mission':
                           return [
-                            { hex: '#FFFFFF', title: 'White' },
-                            { hex: '#FFA366', title: 'Orange' },
-                            { hex: '#7C4A00', title: 'Brown' },
-                            { hex: '#87CEEB', title: 'Light Blue' },
-                            { hex: '#D4AF37', title: 'Gold' },
-                            { hex: '#1A1A1A', title: 'Black' },
+                            { hex: '#211A45', title: 'Dark Indigo' },
+                            { hex: '#4DEEEA', title: 'Electric Cyan' },
+                            { hex: '#C77DF3', title: 'Cosmic Purple' },
+                            { hex: '#FCA311', title: 'Amber/Orange' },
+                          ];
+                        case 'the-cafe':
+                          return [
+                            { hex: '#3B2820', title: 'Dark Brown' },
+                            { hex: '#F2E6D8', title: 'Cream/Off-White' },
+                            { hex: '#2A8CA1', title: 'Teal Blue' },
+                            { hex: '#7D9652', title: 'Sage Green' },
+                          ];
+                        default:
+                          return [
+                            { hex: '#3B2820', title: 'Dark Brown' },
+                            { hex: '#F2E6D8', title: 'Cream/Off-White' },
+                            { hex: '#2A8CA1', title: 'Teal Blue' },
+                            { hex: '#7D9652', title: 'Sage Green' },
                           ];
                       }
                     };
