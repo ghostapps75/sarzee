@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Patrick_Hand } from "next/font/google";
 import "./globals.css";
 
@@ -18,17 +18,18 @@ const patrickHand = Patrick_Hand({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover', // Enables fullscreen-like experience on iPad
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL('https://sarzee.netlify.app'),
   title: "Sarzee - Multiplayer Dice Game",
   description: "Play Sarzee, the ultimate multiplayer dice game with realistic physics. Roll 5-of-a-kind to win big!",
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-    viewportFit: 'cover', // Enables fullscreen-like experience on iPad
-  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

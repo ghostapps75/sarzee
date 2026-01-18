@@ -1,21 +1,61 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 type Props = {
     onDismiss: () => void;
 };
 
+// Global singleton to prevent multiple audio instances playing at once
+let globalSarzeeAudio: HTMLAudioElement | null = null;
+let isPlaying = false;
+
 export default function SarzeeCelebration({ onDismiss }: Props) {
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const hasPlayedRef = useRef(false);
+
     useEffect(() => {
-        // Play sound on mount
+        // Only play once per component mount
+        if (hasPlayedRef.current) return;
+        hasPlayedRef.current = true;
+
+        // Stop any currently playing Sarzee audio
+        if (globalSarzeeAudio && isPlaying) {
+            globalSarzeeAudio.pause();
+            globalSarzeeAudio.currentTime = 0;
+            isPlaying = false;
+        }
+
+        // Create new audio instance
         const audio = new Audio('/sounds/sarzee.mp3');
         audio.volume = 0.6;
-        audio.play().catch((err) => console.warn('Audio play failed:', err));
+        audioRef.current = audio;
+        globalSarzeeAudio = audio;
+        isPlaying = true;
+        
+        const playPromise = audio.play().catch((err) => {
+            console.warn('Audio play failed:', err);
+            isPlaying = false;
+        });
 
         // Auto-dismiss after 5 seconds
-        const timer = setTimeout(onDismiss, 5000);
-        return () => clearTimeout(timer);
+        const timer = setTimeout(() => {
+            onDismiss();
+        }, 5000);
+        
+        // Mark as not playing when audio ends
+        audio.addEventListener('ended', () => {
+            isPlaying = false;
+        });
+
+        return () => {
+            clearTimeout(timer);
+            // Only clear global if this is still the active instance
+            if (audioRef.current === globalSarzeeAudio) {
+                globalSarzeeAudio = null;
+                isPlaying = false;
+            }
+        };
     }, [onDismiss]);
 
     return (

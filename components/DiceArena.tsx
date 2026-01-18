@@ -1,4 +1,4 @@
-﻿// components/DiceArena.tsx
+// components/DiceArena.tsx
 'use client';
 
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
@@ -29,7 +29,7 @@ interface DiceArenaProps {
     isMobile?: boolean;
 }
 
-const DIE_SIZE = 1.15; // Slightly larger than original 1.11, but smaller than 1.4
+const DIE_SIZE = 1.45475; // Increased by 15% then another 10% from original 1.15
 const HALF = DIE_SIZE / 2;
 
 // --- TUNING CONSTANTS for START of roll ---

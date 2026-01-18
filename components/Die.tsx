@@ -21,7 +21,7 @@ interface DieProps {
     onClick: () => void;
 }
 
-const DIE_SIZE = 1.15; // Slightly larger than original 1.11, but smaller than 1.4
+const DIE_SIZE = 1.45475; // Increased by 15% then another 10% from original 1.15
 const HALF = DIE_SIZE / 2;
 
 const PIP_RADIUS = 0.09; // Proportionally adjusted for new size

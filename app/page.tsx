@@ -156,6 +156,8 @@ export default function Page() {
   const [showCelebration, setShowCelebration] = useState(false);
   const [showNancyCelebration, setShowNancyCelebration] = useState(false);
   const [mobileScorecardOpen, setMobileScorecardOpen] = useState(false);
+  const celebrationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const nancyCelebrationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // --- dev-only debug panel state ---
   const [devPanelOpen, setDevPanelOpen] = useState(false);
@@ -245,19 +247,29 @@ export default function Page() {
     // Add 1-second delay before showing celebration
     const vals = results.map((v) => normalizeDie(v));
     if (vals.length === 5 && vals.every((v) => v === vals[0])) {
+      // Clear any existing timeout to prevent multiple celebrations
+      if (celebrationTimeoutRef.current) {
+        clearTimeout(celebrationTimeoutRef.current);
+      }
       setShowCelebration(false);
       // Wait 1 second before showing celebration
-      setTimeout(() => {
+      celebrationTimeoutRef.current = setTimeout(() => {
         setShowCelebration(true);
+        celebrationTimeoutRef.current = null;
       }, 1000);
     }
 
     // Nancy celebration: first roll, all different, not a straight
     if (gameState && isNancy(vals, gameState.rollsLeft)) {
+      // Clear any existing timeout to prevent multiple celebrations
+      if (nancyCelebrationTimeoutRef.current) {
+        clearTimeout(nancyCelebrationTimeoutRef.current);
+      }
       setShowNancyCelebration(false);
       // Wait 1 second before showing celebration
-      setTimeout(() => {
+      nancyCelebrationTimeoutRef.current = setTimeout(() => {
         setShowNancyCelebration(true);
+        nancyCelebrationTimeoutRef.current = null;
       }, 1000);
     }
 
@@ -883,8 +895,8 @@ export default function Page() {
 
         {/* 3. CONTROLS (Bottom Center) */}
         {/* Positioned relative to the stage to scale with it */}
-        {/* 3. CONTROLS (Positioned in lower-right quadrant, left of scorecard) */}
-        <div className="absolute bottom-[8%] right-[31%] z-30 w-[20%] flex justify-center pointer-events-none">
+        {/* 3. CONTROLS (Centered at bottom of board) */}
+        <div className="absolute bottom-[-10%] left-1/2 -translate-x-1/2 z-30 w-[30.25%] flex justify-center pointer-events-none">
           <button
             onClick={handleRoll}
             disabled={isRolling || gameState.rollsLeft <= 0 || gameState.isGameOver}
@@ -1148,7 +1160,7 @@ export default function Page() {
                   </div>
                 )}
 
-                <div className="mt-4 pt-4 border-t border-white/10">
+                <div className="mt-4 pt-4 border-t border-white/10 space-y-2">
                   <button
                     onClick={() => {
                       // Simple: Just set game to over state to test end-of-game UI
@@ -1158,6 +1170,23 @@ export default function Page() {
                     className="w-full bg-amber-600/80 hover:bg-amber-600 py-2 rounded text-xs font-bold uppercase tracking-wider"
                   >
                     Jump to Game Over
+                  </button>
+                  
+                  <button
+                    onClick={triggerCelebration}
+                    className="w-full bg-yellow-600/80 hover:bg-yellow-600 py-2 rounded text-xs font-bold uppercase tracking-wider"
+                  >
+                    Test Sarzee Sound (C)
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setShowNancyCelebration(false);
+                      requestAnimationFrame(() => setShowNancyCelebration(true));
+                    }}
+                    className="w-full bg-green-600/80 hover:bg-green-600 py-2 rounded text-xs font-bold uppercase tracking-wider"
+                  >
+                    Test Nancy Sound
                   </button>
                 </div>
               </div>

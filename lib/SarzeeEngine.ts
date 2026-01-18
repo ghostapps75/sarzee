@@ -153,12 +153,31 @@ export class SarzeeEngine {
             throw new Error('Must roll at least once');
         }
 
+        // Check for bonus Yahtzee: Yahtzee already scored AND current dice form a Yahtzee
+        const isBonusYahtzee = this.state.scorecard[ScoreCategory.Yahtzee] !== null && 
+                               this.isYahtzee(this.state.diceValues);
+
         const score = this.calculatePotentialScore(category);
         this.state.scorecard[category] = score;
         this.state.totalScore += score;
 
+        // If this is a bonus Yahtzee, add 100 bonus points
+        // Note: You must score the bonus Yahtzee somewhere (even if 0) to get the bonus
+        if (isBonusYahtzee) {
+            this.state.yahtzeeBonus += 100;
+            this.state.totalScore += 100;
+        }
+
         // Reset for next turn
         this.advanceTurn();
+    }
+
+    private isYahtzee(dice: DieValue[]): boolean {
+        const counts = new Array(7).fill(0);
+        for (const d of dice) {
+            counts[d]++;
+        }
+        return counts.some(c => c === 5);
     }
 
     private advanceTurn() {
