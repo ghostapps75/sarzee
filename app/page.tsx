@@ -617,7 +617,182 @@ export default function Page() {
     return () => window.removeEventListener('resize', computeFallback);
   }, []);
 
+  // Get theme colors based on selected board - used across all setup steps
+  const getThemeColors = (boardId: string) => {
+    switch (boardId) {
+      case 'the-cafe':
+        return {
+          text: '#F2E6D8', // Cream/Off-White
+          bg: '#3B2820', // Dark Brown
+          bgAlpha: 'rgba(59, 40, 32, 0.8)',
+          containerBg: 'rgba(59, 40, 32, 0.95)',
+          border: '#7D9652', // Sage Green
+          borderAlpha: 'rgba(125, 150, 82, 0.5)',
+          focus: '#2A8CA1', // Teal Blue
+          focusRing: 'rgba(42, 140, 161, 0.3)',
+          placeholder: 'rgba(242, 230, 216, 0.5)',
+          accent: '#2A8CA1', // Teal Blue
+          accentHover: '#23899c',
+          buttonGradientFrom: '#3B2820',
+          buttonGradientTo: '#5a3f33',
+          buttonBorder: 'rgba(125, 150, 82, 0.3)',
+          buttonBorderHover: 'rgba(125, 150, 82, 0.5)',
+          diceBorder: '#7D9652',
+          diceBorderSelected: '#2A8CA1',
+          titleGradient: 'linear-gradient(to right, #7D9652, #2A8CA1, #7D9652)',
+        };
+      case 'franklins-tower':
+        return {
+          text: '#FFFFFF',
+          bg: '#1E3A5F',
+          bgAlpha: 'rgba(30, 58, 95, 0.8)',
+          containerBg: 'rgba(30, 58, 95, 0.95)',
+          border: '#2056A2', // Royal Blue
+          borderAlpha: 'rgba(32, 86, 162, 0.5)',
+          focus: '#E68A00', // Golden Amber
+          focusRing: 'rgba(230, 138, 0, 0.3)',
+          placeholder: 'rgba(255, 255, 255, 0.5)',
+          accent: '#C01E32', // Crimson Red
+          accentHover: '#a91a29',
+          buttonGradientFrom: '#C01E32',
+          buttonGradientTo: '#8B1623',
+          buttonBorder: 'rgba(192, 30, 50, 0.3)',
+          buttonBorderHover: 'rgba(192, 30, 50, 0.5)',
+          diceBorder: '#2056A2',
+          diceBorderSelected: '#E68A00',
+          titleGradient: 'linear-gradient(to right, #E68A00, #2056A2, #E68A00)',
+        };
+      case 'the-emerald-forest':
+        return {
+          text: '#E6AF2E', // Runic Amber
+          bg: '#2E4830', // Deep Canopy
+          bgAlpha: 'rgba(46, 72, 48, 0.8)',
+          containerBg: 'rgba(46, 72, 48, 0.95)',
+          border: '#4ABFAC', // Spirit Wisp
+          borderAlpha: 'rgba(74, 191, 172, 0.5)',
+          focus: '#4ABFAC',
+          focusRing: 'rgba(74, 191, 172, 0.3)',
+          placeholder: 'rgba(230, 175, 46, 0.5)',
+          accent: '#4ABFAC',
+          accentHover: '#3aa896',
+          buttonGradientFrom: '#2E4830',
+          buttonGradientTo: '#3a5a3d',
+          buttonBorder: 'rgba(74, 191, 172, 0.3)',
+          buttonBorderHover: 'rgba(74, 191, 172, 0.5)',
+          diceBorder: '#4ABFAC',
+          diceBorderSelected: '#E6AF2E',
+          titleGradient: 'linear-gradient(to right, #E6AF2E, #4ABFAC, #E6AF2E)',
+        };
+      case 'the-forge':
+        return {
+          text: '#FF8C00', // Bright Glowing Orange
+          bg: '#1C1C1C', // Near Black/Charcoal
+          bgAlpha: 'rgba(28, 28, 28, 0.8)',
+          containerBg: 'rgba(28, 28, 28, 0.95)',
+          border: '#8A2323', // Deep Ember Red
+          borderAlpha: 'rgba(138, 35, 35, 0.5)',
+          focus: '#FF8C00',
+          focusRing: 'rgba(255, 140, 0, 0.3)',
+          placeholder: 'rgba(255, 140, 0, 0.5)',
+          accent: '#FF8C00',
+          accentHover: '#e67d00',
+          buttonGradientFrom: '#FF8C00',
+          buttonGradientTo: '#cc7000',
+          buttonBorder: 'rgba(255, 140, 0, 0.3)',
+          buttonBorderHover: 'rgba(255, 140, 0, 0.5)',
+          diceBorder: '#8A2323',
+          diceBorderSelected: '#FF8C00',
+          titleGradient: 'linear-gradient(to right, #FF8C00, #8A2323, #FF8C00)',
+        };
+      case 'the-map-room':
+        return {
+          text: '#D9B056', // Antique Brass
+          bg: '#273C52', // Slate Navy
+          bgAlpha: 'rgba(39, 60, 82, 0.8)',
+          containerBg: 'rgba(39, 60, 82, 0.95)',
+          border: '#649C8F', // Verdigris Green
+          borderAlpha: 'rgba(100, 156, 143, 0.5)',
+          focus: '#649C8F',
+          focusRing: 'rgba(100, 156, 143, 0.3)',
+          placeholder: 'rgba(217, 176, 86, 0.5)',
+          accent: '#D9B056',
+          accentHover: '#c9a048',
+          buttonGradientFrom: '#273C52',
+          buttonGradientTo: '#3a5472',
+          buttonBorder: 'rgba(100, 156, 143, 0.3)',
+          buttonBorderHover: 'rgba(100, 156, 143, 0.5)',
+          diceBorder: '#649C8F',
+          diceBorderSelected: '#D9B056',
+          titleGradient: 'linear-gradient(to right, #D9B056, #649C8F, #D9B056)',
+        };
+      case 'pirates-cove':
+        return {
+          text: '#E8DCC2', // Aged Bone
+          bg: '#1A4F8B', // Ocean Blue
+          bgAlpha: 'rgba(26, 79, 139, 0.8)',
+          containerBg: 'rgba(26, 79, 139, 0.95)',
+          border: '#D4AF37', // Doubloon Gold
+          borderAlpha: 'rgba(212, 175, 55, 0.5)',
+          focus: '#D4AF37',
+          focusRing: 'rgba(212, 175, 55, 0.3)',
+          placeholder: 'rgba(232, 220, 194, 0.5)',
+          accent: '#D4AF37',
+          accentHover: '#c49f2e',
+          buttonGradientFrom: '#1A4F8B',
+          buttonGradientTo: '#2565b3',
+          buttonBorder: 'rgba(212, 175, 55, 0.3)',
+          buttonBorderHover: 'rgba(212, 175, 55, 0.5)',
+          diceBorder: '#D4AF37',
+          diceBorderSelected: '#E8DCC2',
+          titleGradient: 'linear-gradient(to right, #D4AF37, #1A4F8B, #D4AF37)',
+        };
+      case 'space-mission':
+        return {
+          text: '#4DEEEA', // Electric Cyan
+          bg: '#211A45', // Dark Indigo
+          bgAlpha: 'rgba(33, 26, 69, 0.8)',
+          containerBg: 'rgba(33, 26, 69, 0.95)',
+          border: '#C77DF3', // Cosmic Purple
+          borderAlpha: 'rgba(199, 125, 243, 0.5)',
+          focus: '#4DEEEA',
+          focusRing: 'rgba(77, 238, 234, 0.3)',
+          placeholder: 'rgba(77, 238, 234, 0.5)',
+          accent: '#FCA311', // Amber/Orange
+          accentHover: '#e8940f',
+          buttonGradientFrom: '#C77DF3',
+          buttonGradientTo: '#a660d3',
+          buttonBorder: 'rgba(252, 163, 17, 0.3)',
+          buttonBorderHover: 'rgba(252, 163, 17, 0.5)',
+          diceBorder: '#C77DF3',
+          diceBorderSelected: '#FCA311',
+          titleGradient: 'linear-gradient(to right, #4DEEEA, #C77DF3, #4DEEEA)',
+        };
+      default: // the-cafe fallback
+        return {
+          text: '#F2E6D8',
+          bg: '#3B2820',
+          bgAlpha: 'rgba(59, 40, 32, 0.8)',
+          containerBg: 'rgba(59, 40, 32, 0.95)',
+          border: '#7D9652',
+          borderAlpha: 'rgba(125, 150, 82, 0.5)',
+          focus: '#2A8CA1',
+          focusRing: 'rgba(42, 140, 161, 0.3)',
+          placeholder: 'rgba(242, 230, 216, 0.5)',
+          accent: '#2A8CA1',
+          accentHover: '#23899c',
+          buttonGradientFrom: '#3B2820',
+          buttonGradientTo: '#5a3f33',
+          buttonBorder: 'rgba(125, 150, 82, 0.3)',
+          buttonBorderHover: 'rgba(125, 150, 82, 0.5)',
+          diceBorder: '#7D9652',
+          diceBorderSelected: '#2A8CA1',
+          titleGradient: 'linear-gradient(to right, #7D9652, #2A8CA1, #7D9652)',
+        };
+    }
+  };
+
   if (phase === 'SETUP') {
+    const themeColors = getThemeColors(selectedBoard);
     return (
       <div className="w-screen h-screen overflow-hidden bg-black">
         <div
@@ -629,23 +804,55 @@ export default function Page() {
           }}
         />
         <div className="relative z-10 w-full h-full flex items-center justify-center">
-          <div className="bg-[#1a1612]/95 backdrop-blur-md px-16 py-12 rounded-2xl border-2 border-amber-900/40 shadow-2xl text-center max-w-3xl mx-4" style={{ boxShadow: '0 20px 60px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1)' }}>
-            <h1 className="text-6xl font-black mb-8 bg-gradient-to-r from-amber-300 via-yellow-500 to-amber-400 bg-clip-text text-transparent drop-shadow-lg" style={{ textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)' }}>
+          <div className="backdrop-blur-md px-16 py-12 rounded-2xl border-2 shadow-2xl text-center max-w-3xl mx-4" style={{ 
+            backgroundColor: themeColors.containerBg,
+            borderColor: themeColors.borderAlpha,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1)' 
+          }}>
+            <h1 className="text-6xl font-black mb-8 drop-shadow-lg" style={{ 
+              color: themeColors.text,
+              textShadow: '0 2px 8px rgba(0, 0, 0, 0.8), 0 4px 16px rgba(0, 0, 0, 0.4)',
+              WebkitFontSmoothing: 'antialiased',
+              MozOsxFontSmoothing: 'grayscale',
+              textRendering: 'optimizeLegibility',
+            }}>
               SARZEE
             </h1>
 
             {setupStep === 'BOARD' && (
               <>
-                <div className="text-amber-100 text-xl mb-10 font-medium tracking-wide">Choose your board</div>
+                <div className="text-xl mb-10 font-medium tracking-wide" style={{ color: themeColors.text }}>
+                  Choose your board
+                </div>
                 <div className="flex justify-center mb-8">
                   <select
                     value={selectedBoard}
                     onChange={(e) => selectBoard(e.target.value)}
-                    className="px-8 py-4 bg-gradient-to-b from-amber-700 to-amber-900 text-amber-100 font-bold rounded-xl shadow-xl text-xl border-2 border-amber-500/30 hover:border-amber-400/50 focus:outline-none focus:ring-2 focus:ring-amber-500/30 cursor-pointer min-w-[280px]"
-                    style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)' }}
+                    className="px-8 py-4 font-bold rounded-xl shadow-xl text-xl border-2 focus:outline-none focus:ring-2 cursor-pointer min-w-[280px] transition-colors"
+                    style={{
+                      background: `linear-gradient(to bottom, ${themeColors.buttonGradientFrom}, ${themeColors.buttonGradientTo})`,
+                      color: themeColors.text,
+                      borderColor: themeColors.buttonBorder,
+                      boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+                      '--tw-ring-color': themeColors.focusRing,
+                    } as React.CSSProperties}
+                    onMouseEnter={(e) => {
+                      (e.target as HTMLSelectElement).style.borderColor = themeColors.buttonBorderHover;
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.target as HTMLSelectElement).style.borderColor = themeColors.buttonBorder;
+                    }}
+                    onFocus={(e) => {
+                      (e.target as HTMLSelectElement).style.borderColor = themeColors.focus;
+                      (e.target as HTMLSelectElement).style.boxShadow = `0 0 0 2px ${themeColors.focusRing}, 0 8px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)`;
+                    }}
+                    onBlur={(e) => {
+                      (e.target as HTMLSelectElement).style.borderColor = themeColors.buttonBorder;
+                      (e.target as HTMLSelectElement).style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)';
+                    }}
                   >
                     {boardOptions.map((board) => (
-                      <option key={board.id} value={board.id} className="bg-amber-900 text-amber-100">
+                      <option key={board.id} value={board.id} style={{ backgroundColor: themeColors.buttonGradientTo, color: themeColors.text }}>
                         {board.name}
                       </option>
                     ))}
@@ -654,8 +861,21 @@ export default function Page() {
                 <div className="flex justify-center">
                   <button
                     onClick={() => setSetupStep('COUNT')}
-                    className="px-8 py-4 bg-gradient-to-b from-amber-600 to-amber-800 hover:from-amber-500 hover:to-amber-700 text-amber-100 font-bold rounded-xl shadow-xl text-lg transition-all transform hover:scale-105 active:scale-95 border-2 border-amber-500/30 hover:border-amber-400/50"
-                    style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)' }}
+                    className="px-8 py-4 font-bold rounded-xl shadow-xl text-lg transition-all transform hover:scale-105 active:scale-95 border-2"
+                    style={{
+                      background: `linear-gradient(to bottom, ${themeColors.buttonGradientFrom}, ${themeColors.buttonGradientTo})`,
+                      color: themeColors.text,
+                      borderColor: themeColors.buttonBorder,
+                      boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+                    }}
+                    onMouseEnter={(e) => {
+                      const btn = e.target as HTMLButtonElement;
+                      btn.style.borderColor = themeColors.buttonBorderHover;
+                    }}
+                    onMouseLeave={(e) => {
+                      const btn = e.target as HTMLButtonElement;
+                      btn.style.borderColor = themeColors.buttonBorder;
+                    }}
                   >
                     Continue
                   </button>
@@ -665,14 +885,29 @@ export default function Page() {
 
             {setupStep === 'COUNT' && (
               <>
-                <div className="text-amber-100 text-xl mb-10 font-medium tracking-wide">How many players?</div>
+                <div className="text-xl mb-10 font-medium tracking-wide" style={{ color: themeColors.text }}>
+                  How many players?
+                </div>
                 <div className="flex gap-6 justify-center mb-8">
                   {[1, 2, 3, 4].map((n) => (
                     <button
                       key={n}
                       onClick={() => selectPlayerCount(n)}
-                      className="w-20 h-20 bg-gradient-to-b from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-amber-100 font-bold rounded-xl shadow-xl text-3xl transition-all transform hover:scale-110 active:scale-95 border-2 border-amber-500/30 hover:border-amber-400/50"
-                      style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)' }}
+                      className="w-20 h-20 font-bold rounded-xl shadow-xl text-3xl transition-all transform hover:scale-110 active:scale-95 border-2"
+                      style={{
+                        background: `linear-gradient(to bottom, ${themeColors.buttonGradientFrom}, ${themeColors.buttonGradientTo})`,
+                        color: themeColors.text,
+                        borderColor: themeColors.buttonBorder,
+                        boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+                      }}
+                      onMouseEnter={(e) => {
+                        const btn = e.target as HTMLButtonElement;
+                        btn.style.borderColor = themeColors.buttonBorderHover;
+                      }}
+                      onMouseLeave={(e) => {
+                        const btn = e.target as HTMLButtonElement;
+                        btn.style.borderColor = themeColors.buttonBorder;
+                      }}
                     >
                       {n}
                     </button>
@@ -683,11 +918,13 @@ export default function Page() {
 
             {setupStep === 'NAMES' && (
               <>
-                <div className="text-amber-100 text-xl mb-6 font-medium tracking-wide">Enter player names & choose dice colors</div>
+                <div className="text-xl mb-6 font-medium tracking-wide" style={{ color: themeColors.text }}>
+                  Enter player names & choose dice colors
+                </div>
                 <div className="flex flex-col gap-5 mb-8 max-w-2xl mx-auto">
-                  {customNames.map((name, idx) => {
-                    const playerColor = playerDiceColors[idx] || '#FFFFFF';
-                    // Get dice color options based on selected board
+                        {customNames.map((name, idx) => {
+                          const playerColor = playerDiceColors[idx] || '#FFFFFF';
+                          // Get dice color options based on selected board
                     const getDiceColorOptions = (boardId: string) => {
                       switch (boardId) {
                         case 'franklins-tower':
@@ -758,8 +995,21 @@ export default function Page() {
                             next[idx] = e.target.value;
                             setCustomNames(next);
                           }}
-                          onFocus={(e) => e.target.select()}
-                          className="flex-1 bg-amber-950/80 border-2 border-amber-800/50 rounded-lg px-4 py-3 text-center text-amber-100 text-lg focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 placeholder:text-amber-700/50"
+                          className="flex-1 rounded-lg px-4 py-3 text-center text-lg focus:outline-none transition-colors"
+                          style={{
+                            backgroundColor: themeColors.bgAlpha,
+                            border: `2px solid ${themeColors.borderAlpha}`,
+                            color: themeColors.text,
+                          }}
+                          onFocus={(e) => {
+                            e.target.select();
+                            (e.target as HTMLInputElement).style.borderColor = themeColors.focus;
+                            (e.target as HTMLInputElement).style.boxShadow = `0 0 0 2px ${themeColors.focusRing}`;
+                          }}
+                          onBlur={(e) => {
+                            (e.target as HTMLInputElement).style.borderColor = themeColors.borderAlpha;
+                            (e.target as HTMLInputElement).style.boxShadow = 'none';
+                          }}
                           placeholder={`Player ${idx + 1}`}
                           maxLength={10}
                         />
@@ -769,9 +1019,13 @@ export default function Page() {
                               key={colorOption.hex}
                               onClick={() => selectPlayerDiceColor(idx, colorOption.hex)}
                               className={`w-10 h-10 rounded-lg border-2 transition-all transform hover:scale-110 active:scale-95 ${
-                                playerColor === colorOption.hex ? 'border-amber-400 shadow-lg scale-110' : 'border-amber-700/50'
+                                playerColor === colorOption.hex ? 'shadow-lg scale-110' : ''
                               }`}
-                              style={{ backgroundColor: colorOption.hex, boxShadow: playerColor === colorOption.hex ? '0 4px 8px rgba(0, 0, 0, 0.4)' : '0 2px 4px rgba(0, 0, 0, 0.3)' }}
+                              style={{
+                                backgroundColor: colorOption.hex,
+                                borderColor: playerColor === colorOption.hex ? themeColors.diceBorderSelected : themeColors.diceBorder + '80',
+                                boxShadow: playerColor === colorOption.hex ? '0 4px 8px rgba(0, 0, 0, 0.4)' : '0 2px 4px rgba(0, 0, 0, 0.3)'
+                              }}
                               title={colorOption.title}
                             />
                           ))}
@@ -783,15 +1037,37 @@ export default function Page() {
                 <div className="flex justify-center gap-4 mb-6">
                   <button
                     onClick={() => setSetupStep('COUNT')}
-                    className="text-amber-400/80 hover:text-amber-300 text-sm underline transition-colors"
+                    className="text-sm underline transition-colors"
+                    style={{
+                      color: themeColors.accent + 'cc',
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.target as HTMLButtonElement).style.color = themeColors.accentHover;
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.target as HTMLButtonElement).style.color = themeColors.accent + 'cc';
+                    }}
                   >
                     ← Back
                   </button>
                 </div>
                 <button
                   onClick={commitStartGame}
-                  className="bg-gradient-to-r from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-amber-100 font-bold py-4 px-12 rounded-xl shadow-xl text-xl transition-all transform hover:scale-105 active:scale-95 border-2 border-amber-500/30 hover:border-amber-400/50"
-                  style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)' }}
+                  className="font-bold py-4 px-12 rounded-xl shadow-xl text-xl transition-all transform hover:scale-105 active:scale-95 border-2"
+                  style={{
+                    background: `linear-gradient(to right, ${themeColors.buttonGradientFrom}, ${themeColors.buttonGradientTo})`,
+                    color: themeColors.text,
+                    borderColor: themeColors.buttonBorder,
+                    boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+                  }}
+                  onMouseEnter={(e) => {
+                    const btn = e.target as HTMLButtonElement;
+                    btn.style.borderColor = themeColors.buttonBorderHover;
+                  }}
+                  onMouseLeave={(e) => {
+                    const btn = e.target as HTMLButtonElement;
+                    btn.style.borderColor = themeColors.buttonBorder;
+                  }}
                 >
                   Start Game
                 </button>
