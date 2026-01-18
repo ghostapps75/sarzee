@@ -150,9 +150,19 @@ export default function Page() {
   const [isRolling, setIsRolling] = useState(false);
 
   const [setupStep, setSetupStep] = useState<'BOARD' | 'COUNT' | 'NAMES'>('BOARD');
-  const [selectedBoard, setSelectedBoard] = useState<'classic' | 'delilah'>('classic');
+  const [selectedBoard, setSelectedBoard] = useState<string>('the-cafe');
   const [customNames, setCustomNames] = useState<string[]>([]);
   const [playerDiceColors, setPlayerDiceColors] = useState<string[]>([]); // Array of colors, one per player
+
+  // Board options mapping
+  const boardOptions = [
+    { id: 'the-cafe', name: 'The Cafe', file: 'board_texture.jpg' },
+    { id: 'franklins-tower', name: "Franklin's Tower", file: 'gd_board.JPG' },
+    { id: 'the-forge', name: 'The Forge', file: 'forge_board.jpg' },
+    { id: 'the-emerald-forest', name: 'The Emerald Forest', file: 'emeraldforest_board.jpg' },
+    { id: 'the-urban-tech', name: 'The Urban Tech', file: 'urbantech_board.jpg' },
+    { id: 'the-map-room', name: 'The Map Room', file: 'maproom_board.jpg' },
+  ];
 
   const [showCelebration, setShowCelebration] = useState(false);
   const [showNancyCelebration, setShowNancyCelebration] = useState(false);
@@ -171,19 +181,29 @@ export default function Page() {
 
   const rollSound = useSafeAudio(['/sounds/roll.mp3', '/sounds/dice.mp3', '/sounds/roll.wav']);
 
-  const delilahDiceColors = ['#DC143C', '#FFFFFF', '#1E90FF', '#FFD700']; // Red, White, Blue, Yellow
+  // Board-specific dice colors
+  const boardDiceColors: Record<string, string[]> = {
+    'the-cafe': ['#FFFFFF', '#FFFFFF', '#FFFFFF', '#FFFFFF'], // White (default, user chooses)
+    'franklins-tower': ['#DC143C', '#FFFFFF', '#1E90FF', '#FFD700'], // Red, White, Blue, Yellow
+    'the-emerald-forest': ['#228B22', '#9370DB', '#8B4513', '#FFFFFF'], // Green, Purple, Brown, White
+    'the-forge': ['#FF7B2B', '#000000', '#C0C0C0', '#0047AB'], // Fire Orange, Black, Silver, Cobalt Blue
+    'the-map-room': ['#8B4513', '#A0522D', '#FFFFFF', '#D2B48C'], // Brown (dark), Brown (light), White, Tan/Wooden
+    'the-urban-tech': ['#9370DB', '#C0C0C0', '#FFFFFF', '#9B59B6'], // Purple, Silver, White, Multi-colored (vibrant purple-blue)
+  };
   
   const selectPlayerCount = (count: number) => {
     setPlayerCount(count);
     setCustomNames(Array.from({ length: count }, (_, i) => `Player ${i + 1}`));
     
-    // If Delilah board is selected, use themed colors (red, white, blue, yellow)
-    if (selectedBoard === 'delilah') {
-      const colors = Array.from({ length: count }, (_, i) => delilahDiceColors[i % delilahDiceColors.length]);
-      setPlayerDiceColors(colors);
-    } else {
-      // Default all to white for classic board
+    // Assign themed dice colors based on selected board
+    const themeColors = boardDiceColors[selectedBoard] || boardDiceColors['the-cafe'];
+    if (selectedBoard === 'the-cafe') {
+      // For The Cafe, default all to white (user can customize)
       setPlayerDiceColors(Array.from({ length: count }, () => '#FFFFFF'));
+    } else {
+      // For themed boards, cycle through their color palette
+      const colors = Array.from({ length: count }, (_, i) => themeColors[i % themeColors.length]);
+      setPlayerDiceColors(colors);
     }
     setSetupStep('NAMES');
   };
@@ -223,10 +243,11 @@ export default function Page() {
     setMobileScorecardOpen(false);
   };
 
-  const boardTexture = selectedBoard === 'delilah' ? '/textures/gd_board.jpg' : '/textures/board_texture.jpg';
+  const boardOption = boardOptions.find(b => b.id === selectedBoard) || boardOptions[0];
+  const boardTexture = `/textures/${boardOption.file}`;
 
-  const selectBoard = (board: 'classic' | 'delilah') => {
-    setSelectedBoard(board);
+  const selectBoard = (boardId: string) => {
+    setSelectedBoard(boardId);
     setSetupStep('COUNT');
   };
 
@@ -619,20 +640,27 @@ export default function Page() {
             {setupStep === 'BOARD' && (
               <>
                 <div className="text-amber-100 text-xl mb-10 font-medium tracking-wide">Choose your board</div>
-                <div className="flex gap-6 justify-center mb-8">
-                  <button
-                    onClick={() => selectBoard('classic')}
-                    className="px-8 py-4 bg-gradient-to-b from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-amber-100 font-bold rounded-xl shadow-xl text-xl transition-all transform hover:scale-105 active:scale-95 border-2 border-amber-500/30 hover:border-amber-400/50"
+                <div className="flex justify-center mb-8">
+                  <select
+                    value={selectedBoard}
+                    onChange={(e) => selectBoard(e.target.value)}
+                    className="px-8 py-4 bg-gradient-to-b from-amber-700 to-amber-900 text-amber-100 font-bold rounded-xl shadow-xl text-xl border-2 border-amber-500/30 hover:border-amber-400/50 focus:outline-none focus:ring-2 focus:ring-amber-500/30 cursor-pointer min-w-[280px]"
                     style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)' }}
                   >
-                    Classic
-                  </button>
+                    {boardOptions.map((board) => (
+                      <option key={board.id} value={board.id} className="bg-amber-900 text-amber-100">
+                        {board.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex justify-center">
                   <button
-                    onClick={() => selectBoard('delilah')}
-                    className="px-8 py-4 bg-gradient-to-b from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-amber-100 font-bold rounded-xl shadow-xl text-xl transition-all transform hover:scale-105 active:scale-95 border-2 border-amber-500/30 hover:border-amber-400/50"
+                    onClick={() => setSetupStep('COUNT')}
+                    className="px-8 py-4 bg-gradient-to-b from-amber-600 to-amber-800 hover:from-amber-500 hover:to-amber-700 text-amber-100 font-bold rounded-xl shadow-xl text-lg transition-all transform hover:scale-105 active:scale-95 border-2 border-amber-500/30 hover:border-amber-400/50"
                     style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)' }}
                   >
-                    Sarzee & Delilah
+                    Continue
                   </button>
                 </div>
               </>
@@ -662,20 +690,56 @@ export default function Page() {
                 <div className="flex flex-col gap-5 mb-8 max-w-2xl mx-auto">
                   {customNames.map((name, idx) => {
                     const playerColor = playerDiceColors[idx] || '#FFFFFF';
-                    // For Delilah board, use themed colors; for classic, use full color palette
-                    const diceColorOptions = selectedBoard === 'delilah' ? [
-                      { hex: '#DC143C', title: 'Red' },
-                      { hex: '#FFFFFF', title: 'White' },
-                      { hex: '#1E90FF', title: 'Blue' },
-                      { hex: '#FFD700', title: 'Yellow' },
-                    ] : [
-                      { hex: '#FFFFFF', title: 'White' },
-                      { hex: '#FFA366', title: 'Orange' },
-                      { hex: '#7C4A00', title: 'Brown' },
-                      { hex: '#87CEEB', title: 'Light Blue' },
-                      { hex: '#D4AF37', title: 'Gold' },
-                      { hex: '#1A1A1A', title: 'Black' },
-                    ];
+                    // Get dice color options based on selected board
+                    const getDiceColorOptions = (boardId: string) => {
+                      switch (boardId) {
+                        case 'franklins-tower':
+                          return [
+                            { hex: '#DC143C', title: 'Red' },
+                            { hex: '#FFFFFF', title: 'White' },
+                            { hex: '#1E90FF', title: 'Blue' },
+                            { hex: '#FFD700', title: 'Yellow' },
+                          ];
+                        case 'the-emerald-forest':
+                          return [
+                            { hex: '#228B22', title: 'Green' },
+                            { hex: '#9370DB', title: 'Purple' },
+                            { hex: '#8B4513', title: 'Brown' },
+                            { hex: '#FFFFFF', title: 'White' },
+                          ];
+                        case 'the-forge':
+                          return [
+                            { hex: '#FF7B2B', title: 'Fire Orange' },
+                            { hex: '#000000', title: 'Black' },
+                            { hex: '#C0C0C0', title: 'Silver' },
+                            { hex: '#0047AB', title: 'Cobalt Blue' },
+                          ];
+                        case 'the-map-room':
+                          return [
+                            { hex: '#8B4513', title: 'Brown (Dark)' },
+                            { hex: '#A0522D', title: 'Brown (Light)' },
+                            { hex: '#FFFFFF', title: 'White' },
+                            { hex: '#D2B48C', title: 'Wooden' },
+                          ];
+                        case 'the-urban-tech':
+                          return [
+                            { hex: '#9370DB', title: 'Purple' },
+                            { hex: '#C0C0C0', title: 'Silver' },
+                            { hex: '#FFFFFF', title: 'White' },
+                            { hex: '#9B59B6', title: 'Multi-Colored' },
+                          ];
+                        default: // the-cafe
+                          return [
+                            { hex: '#FFFFFF', title: 'White' },
+                            { hex: '#FFA366', title: 'Orange' },
+                            { hex: '#7C4A00', title: 'Brown' },
+                            { hex: '#87CEEB', title: 'Light Blue' },
+                            { hex: '#D4AF37', title: 'Gold' },
+                            { hex: '#1A1A1A', title: 'Black' },
+                          ];
+                      }
+                    };
+                    const diceColorOptions = getDiceColorOptions(selectedBoard);
                     return (
                       <div key={idx} className="flex items-center gap-3">
                         <input
