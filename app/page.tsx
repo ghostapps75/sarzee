@@ -149,7 +149,8 @@ export default function Page() {
   const [potentialScores, setPotentialScores] = useState<Record<ScoreCategory, number>>({} as any);
   const [isRolling, setIsRolling] = useState(false);
 
-  const [setupStep, setSetupStep] = useState<'COUNT' | 'NAMES'>('COUNT');
+  const [setupStep, setSetupStep] = useState<'BOARD' | 'COUNT' | 'NAMES'>('BOARD');
+  const [selectedBoard, setSelectedBoard] = useState<'classic' | 'delilah'>('classic');
   const [customNames, setCustomNames] = useState<string[]>([]);
   const [playerDiceColors, setPlayerDiceColors] = useState<string[]>([]); // Array of colors, one per player
 
@@ -170,10 +171,20 @@ export default function Page() {
 
   const rollSound = useSafeAudio(['/sounds/roll.mp3', '/sounds/dice.mp3', '/sounds/roll.wav']);
 
+  const delilahDiceColors = ['#DC143C', '#FFFFFF', '#1E90FF', '#FFD700']; // Red, White, Blue, Yellow
+  
   const selectPlayerCount = (count: number) => {
     setPlayerCount(count);
     setCustomNames(Array.from({ length: count }, (_, i) => `Player ${i + 1}`));
-    setPlayerDiceColors(Array.from({ length: count }, () => '#FFFFFF')); // Default all to white
+    
+    // If Delilah board is selected, use themed colors (red, white, blue, yellow)
+    if (selectedBoard === 'delilah') {
+      const colors = Array.from({ length: count }, (_, i) => delilahDiceColors[i % delilahDiceColors.length]);
+      setPlayerDiceColors(colors);
+    } else {
+      // Default all to white for classic board
+      setPlayerDiceColors(Array.from({ length: count }, () => '#FFFFFF'));
+    }
     setSetupStep('NAMES');
   };
 
@@ -204,12 +215,19 @@ export default function Page() {
     setActivePlayer(0);
     setPlayerCount(1);
     setPhase('SETUP');
-    setSetupStep('COUNT');
+    setSetupStep('BOARD');
     setCustomNames([]);
     setPlayerDiceColors([]);
     setIsRolling(false);
     setShowCelebration(false);
     setMobileScorecardOpen(false);
+  };
+
+  const boardTexture = selectedBoard === 'delilah' ? '/textures/gd_board.jpg' : '/textures/board_texture.jpg';
+
+  const selectBoard = (board: 'classic' | 'delilah') => {
+    setSelectedBoard(board);
+    setSetupStep('COUNT');
   };
 
   const handleDieClick = (idx: number) => {
@@ -465,9 +483,9 @@ export default function Page() {
   const [imgInfo, setImgInfo] = useState<ImgInfo | null>(null);
   useEffect(() => {
     const img = new Image();
-    img.src = '/textures/board_texture.jpg';
+    img.src = boardTexture;
     img.onload = () => setImgInfo({ w: img.naturalWidth || BASE_W, h: img.naturalHeight || BASE_H });
-  }, []);
+  }, [boardTexture]);
 
   const bgRef = useRef<HTMLDivElement | null>(null);
   const scorecardRef = useRef<HTMLDivElement>(null); // For export capture
@@ -587,7 +605,7 @@ export default function Page() {
         <div
           className="absolute inset-0"
           style={{
-            backgroundImage: 'url(/textures/board_texture.jpg)',
+            backgroundImage: `url(${boardTexture})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
           }}
@@ -597,6 +615,28 @@ export default function Page() {
             <h1 className="text-6xl font-black mb-8 bg-gradient-to-r from-amber-300 via-yellow-500 to-amber-400 bg-clip-text text-transparent drop-shadow-lg" style={{ textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)' }}>
               SARZEE
             </h1>
+
+            {setupStep === 'BOARD' && (
+              <>
+                <div className="text-amber-100 text-xl mb-10 font-medium tracking-wide">Choose your board</div>
+                <div className="flex gap-6 justify-center mb-8">
+                  <button
+                    onClick={() => selectBoard('classic')}
+                    className="px-8 py-4 bg-gradient-to-b from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-amber-100 font-bold rounded-xl shadow-xl text-xl transition-all transform hover:scale-105 active:scale-95 border-2 border-amber-500/30 hover:border-amber-400/50"
+                    style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)' }}
+                  >
+                    Classic
+                  </button>
+                  <button
+                    onClick={() => selectBoard('delilah')}
+                    className="px-8 py-4 bg-gradient-to-b from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-amber-100 font-bold rounded-xl shadow-xl text-xl transition-all transform hover:scale-105 active:scale-95 border-2 border-amber-500/30 hover:border-amber-400/50"
+                    style={{ boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)' }}
+                  >
+                    Sarzee & Delilah
+                  </button>
+                </div>
+              </>
+            )}
 
             {setupStep === 'COUNT' && (
               <>
@@ -622,7 +662,13 @@ export default function Page() {
                 <div className="flex flex-col gap-5 mb-8 max-w-2xl mx-auto">
                   {customNames.map((name, idx) => {
                     const playerColor = playerDiceColors[idx] || '#FFFFFF';
-                    const diceColorOptions = [
+                    // For Delilah board, use themed colors; for classic, use full color palette
+                    const diceColorOptions = selectedBoard === 'delilah' ? [
+                      { hex: '#DC143C', title: 'Red' },
+                      { hex: '#FFFFFF', title: 'White' },
+                      { hex: '#1E90FF', title: 'Blue' },
+                      { hex: '#FFD700', title: 'Yellow' },
+                    ] : [
                       { hex: '#FFFFFF', title: 'White' },
                       { hex: '#FFA366', title: 'Orange' },
                       { hex: '#7C4A00', title: 'Brown' },
@@ -859,7 +905,7 @@ export default function Page() {
         ref={stageRef}
         className="absolute inset-0 w-full h-full shadow-2xl bg-[#0a0a0a]"
         style={{
-          backgroundImage: 'url(/textures/board_texture.jpg)',
+          backgroundImage: `url(${boardTexture})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
