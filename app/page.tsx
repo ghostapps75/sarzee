@@ -158,10 +158,11 @@ export default function Page() {
   const boardOptions = [
     { id: 'the-cafe', name: 'The Cafe', file: 'board_texture.jpg' },
     { id: 'franklins-tower', name: "Franklin's Tower", file: 'gd_board.JPG' },
-    { id: 'the-forge', name: 'The Forge', file: 'forge_board.jpg' },
+    { id: 'the-forge', name: 'The Forge', file: 'forge.jpg' },
     { id: 'the-emerald-forest', name: 'The Emerald Forest', file: 'emeraldforest_board.jpg' },
     { id: 'the-urban-tech', name: 'The Urban Tech', file: 'urbantech_board.jpg' },
     { id: 'the-map-room', name: 'The Map Room', file: 'maproom_board.jpg' },
+    { id: 'pirates-cove', name: 'Pirates Cove', file: 'pirate_board.jpg' },
   ];
 
   const [showCelebration, setShowCelebration] = useState(false);
@@ -186,9 +187,10 @@ export default function Page() {
     'the-cafe': ['#FFFFFF', '#FFFFFF', '#FFFFFF', '#FFFFFF'], // White (default, user chooses)
     'franklins-tower': ['#DC143C', '#FFFFFF', '#1E90FF', '#FFD700'], // Red, White, Blue, Yellow
     'the-emerald-forest': ['#228B22', '#9370DB', '#8B4513', '#FFFFFF'], // Green, Purple, Brown, White
-    'the-forge': ['#FF7B2B', '#000000', '#C0C0C0', '#0047AB'], // Fire Orange, Black, Silver, Cobalt Blue
+    'the-forge': ['#1A0A00', '#FF3300', '#FFB366', '#FFFFFF'], // Dark Brown-Black, Bright Red, Very Light Orange, Bright White
     'the-map-room': ['#8B4513', '#A0522D', '#FFFFFF', '#D2B48C'], // Brown (dark), Brown (light), White, Tan/Wooden
-    'the-urban-tech': ['#9370DB', '#C0C0C0', '#FFFFFF', '#9B59B6'], // Purple, Silver, White, Multi-colored (vibrant purple-blue)
+    'the-urban-tech': ['#D0C8E8', '#B0A8D0', '#7A6A9A', '#E8E0F8'], // Silvery Lavender, Metallic Purple, Deep Purple, Light Silver-Purple
+    'pirates-cove': ['#FD8F08', '#71DC78', '#ECBB80', '#112595'], // Orange, Green, Tan, Navy Blue
   };
   
   const selectPlayerCount = (count: number) => {
@@ -709,10 +711,10 @@ export default function Page() {
                           ];
                         case 'the-forge':
                           return [
-                            { hex: '#FF7B2B', title: 'Fire Orange' },
-                            { hex: '#000000', title: 'Black' },
-                            { hex: '#C0C0C0', title: 'Silver' },
-                            { hex: '#0047AB', title: 'Cobalt Blue' },
+                            { hex: '#1A0A00', title: 'Dark Brown-Black' },
+                            { hex: '#FF3300', title: 'Bright Red' },
+                            { hex: '#FFB366', title: 'Very Light Orange' },
+                            { hex: '#FFFFFF', title: 'Bright White' },
                           ];
                         case 'the-map-room':
                           return [
@@ -723,10 +725,17 @@ export default function Page() {
                           ];
                         case 'the-urban-tech':
                           return [
-                            { hex: '#9370DB', title: 'Purple' },
-                            { hex: '#C0C0C0', title: 'Silver' },
-                            { hex: '#FFFFFF', title: 'White' },
-                            { hex: '#9B59B6', title: 'Multi-Colored' },
+                            { hex: '#D0C8E8', title: 'Silvery Lavender' },
+                            { hex: '#B0A8D0', title: 'Metallic Purple' },
+                            { hex: '#7A6A9A', title: 'Deep Purple' },
+                            { hex: '#E8E0F8', title: 'Light Silver-Purple' },
+                          ];
+                        case 'pirates-cove':
+                          return [
+                            { hex: '#FD8F08', title: 'Orange' },
+                            { hex: '#71DC78', title: 'Green' },
+                            { hex: '#ECBB80', title: 'Tan' },
+                            { hex: '#112595', title: 'Navy Blue' },
                           ];
                         default: // the-cafe
                           return [
