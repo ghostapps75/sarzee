@@ -46,6 +46,12 @@ const CORNER_RADIUS = DIE_SIZE * DIE_PROPORTIONS.cornerRadius;
 /** Smallest comfortable tap target, as a multiple of the die's edge length. */
 const MIN_TAP_SCALE = 1.12;
 
+/**
+ * How far apart a board's signature pip colour and the die's colour must be, in perceived
+ * lightness, before the signature is used instead of plain black or white pips.
+ */
+const MIN_PIP_CONTRAST = 0.35;
+
 /** Perceived lightness of a #rrggbb colour, 0 (black) to 1 (white). */
 function relativeLuminance(hex: string): number {
     const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
@@ -152,35 +158,38 @@ const Die = forwardRef<DieHandle, DieProps>(
             return shownQuat;
         };
 
-        // Dice appearance is declared per board in lib/boards.ts, so a new theme is a
-        // data change rather than another branch here.
+        // The board supplies the material; the player supplies the colour. A board can
+        // never override the colour outright — doing so silently made the picker useless
+        // on the Forge and Pirates Cove.
         const skin = useMemo(() => {
             if (isHeld) {
                 return {
                     color: '#fbbf24', // premium gold for locked dice
                     roughness: 0.1,
                     metalness: 0.4,
-                    transparent: false,
-                    opacity: 1.0,
                     pipColor: '#111111',
                 };
             }
 
-            const board = getBoard(boardId);
-            const boardSkin = board.diceSkin;
-            const resolvedColor = boardSkin.forceColor ?? color;
-            // Pick pips by how light the die actually is, not by whether it happens to be
-            // pure white. Cream and amber dice were getting white pips, which all but
-            // vanish once a highlight catches the face.
-            const autoPip = relativeLuminance(resolvedColor) > 0.52 ? '#1A1A1A' : '#FFFFFF';
+            const boardSkin = getBoard(boardId).diceSkin;
+            const dieLuminance = relativeLuminance(color);
+
+            // Pips by how light the die actually is, not by whether it happens to be pure
+            // white. Cream and amber dice were getting white pips, which all but vanish
+            // once a highlight catches the face.
+            const autoPip = dieLuminance > 0.52 ? '#1A1A1A' : '#FFFFFF';
+
+            // A board's signature pips only earn their place when you can see them: the
+            // Forge's magma glows on a black die and disappears on an orange one.
+            const signature = boardSkin.pipColor;
+            const usableSignature =
+                signature && Math.abs(relativeLuminance(signature) - dieLuminance) >= MIN_PIP_CONTRAST;
 
             return {
-                color: resolvedColor,
+                color,
                 roughness: boardSkin.roughness,
                 metalness: boardSkin.metalness,
-                transparent: boardSkin.transparent,
-                opacity: boardSkin.opacity,
-                pipColor: boardSkin.pipColor ?? autoPip,
+                pipColor: usableSignature ? signature : autoPip,
             };
         }, [boardId, color, isHeld]);
 
@@ -238,12 +247,10 @@ const Die = forwardRef<DieHandle, DieProps>(
 
                 <group ref={faceGroupRef} raycast={() => null}>
                     <RoundedBox args={[DIE_SIZE, DIE_SIZE, DIE_SIZE]} radius={CORNER_RADIUS} smoothness={8} castShadow>
-                        <meshStandardMaterial 
-                            color={skin.color} 
-                            roughness={skin.roughness} 
-                            metalness={skin.metalness} 
-                            transparent={skin.transparent}
-                            opacity={skin.opacity}
+                        <meshStandardMaterial
+                            color={skin.color}
+                            roughness={skin.roughness}
+                            metalness={skin.metalness}
                             envMapIntensity={1.2}
                         />
                     </RoundedBox>

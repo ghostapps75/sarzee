@@ -86,15 +86,21 @@ export interface BoardParticles {
     count: number;
 }
 
-/** How dice are rendered on a given board. */
+/**
+ * How dice are rendered on a given board.
+ *
+ * Only the *material* — how the surface catches light. The colour always comes from the
+ * player's choice in setup. Boards used to be able to override it outright, which meant
+ * picking a colour on the Forge or Pirates Cove did nothing at all.
+ */
 export interface DiceSkin {
-    /** When set, every player's dice use this colour instead of their chosen one. */
-    forceColor?: string;
     roughness: number;
     metalness: number;
-    transparent: boolean;
-    opacity: number;
-    /** When set, overrides the automatic light/dark pip colour. */
+    /**
+     * A signature pip colour, used only when it contrasts with the die the player picked.
+     * The Forge's magma pips look wonderful on a black die and vanish on an orange one, so
+     * this falls back to the automatic light/dark choice when contrast is too low.
+     */
     pipColor?: string;
 }
 
@@ -123,8 +129,6 @@ export interface BoardDefinition {
 const DEFAULT_SKIN: DiceSkin = {
     roughness: 0.15,
     metalness: 0.3,
-    transparent: false,
-    opacity: 1.0,
 };
 
 export const BOARDS: BoardDefinition[] = [
@@ -180,11 +184,11 @@ export const BOARDS: BoardDefinition[] = [
         diceColors: ['#E6AF2E', '#4ABFAC', '#C05746', '#2E4830'],
         // The forest wisps the board description promises.
         particles: { color: '#4DEE9E', motion: 'rise', count: 55 },
+        // Polished jade. It used to be translucent, which looked lovely in isolation and
+        // made the dice impossible to read against the forest behind them.
         diceSkin: {
             roughness: 0.08,
             metalness: 0.05,
-            transparent: true,
-            opacity: 0.88, // translucent forest jade
             pipColor: '#FFFFFF',
         },
         theme: {
@@ -220,16 +224,14 @@ export const BOARDS: BoardDefinition[] = [
         heldTray: DEFAULT_HELD_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
         unit: DEFAULT_BOARD_UNIT,
-        diceColors: ['#FF8C00', '#1C1C1C', '#8A2323', '#4A5D6E'],
+        diceColors: ['#1C1C1C', '#FF8C00', '#8A2323', '#4A5D6E'], // obsidian first: the classic look
         // Embers coming off the magma.
         particles: { color: '#FF5500', motion: 'rise', count: 90 },
+        // Rough volcanic stone, whatever colour the player picked.
         diceSkin: {
-            forceColor: '#1a1816', // dark obsidian stone
             roughness: 0.8,
             metalness: 0.1,
-            transparent: false,
-            opacity: 1.0,
-            pipColor: '#FF6A00', // glowing magma pips
+            pipColor: '#FF6A00', // glowing magma, on dark dice
         },
         theme: {
             text: '#FF8C00',
@@ -369,14 +371,12 @@ export const BOARDS: BoardDefinition[] = [
         heldTray: DEFAULT_HELD_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
         unit: DEFAULT_BOARD_UNIT,
-        diceColors: ['#1A4F8B', '#D4AF37', '#A81B1B', '#E8DCC2'],
+        diceColors: ['#E8DCC2', '#D4AF37', '#1A4F8B', '#A81B1B'], // bone first: the classic look
+        // Sun-bleached and weathered, whatever colour the player picked.
         diceSkin: {
-            forceColor: '#eae0cc', // sun-bleached bone
             roughness: 0.65,
             metalness: 0.05,
-            transparent: false,
-            opacity: 1.0,
-            pipColor: '#4d3019',
+            pipColor: '#4d3019', // weathered brown, on light dice
         },
         theme: {
             text: '#E8DCC2',
@@ -422,8 +422,6 @@ export const BOARDS: BoardDefinition[] = [
             // letting the player's colour actually show.
             roughness: 0.18,
             metalness: 0.45,
-            transparent: false,
-            opacity: 1.0,
         },
         theme: {
             text: '#4DEEEA',
