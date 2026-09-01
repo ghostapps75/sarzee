@@ -4,7 +4,6 @@ import React, { forwardRef, useImperativeHandle, useMemo, useRef, useState } fro
 import * as THREE from 'three';
 import { RoundedBox, Text } from '@react-three/drei';
 import { ThreeEvent, useFrame } from '@react-three/fiber';
-import useSound from 'use-sound';
 import { getBoard } from '@/lib/boards';
 import { DIE_HALF, DIE_PROPORTIONS, DIE_SIZE, HELD_SCALE, valueFromQuaternion } from '@/lib/dieFaces';
 
@@ -141,8 +140,6 @@ const Die = forwardRef<DieHandle, DieProps>(
         },
         ref
     ) => {
-        const [playPop] = useSound('/sounds/pop.mp3', { volume: 0.5 });
-
         const groupRef = useRef<THREE.Group>(null);
         const faceGroupRef = useRef<THREE.Group>(null);
         const [debugValue, setDebugValue] = useState(1);
@@ -215,7 +212,6 @@ const Die = forwardRef<DieHandle, DieProps>(
         const handleClick = (e: ThreeEvent<MouseEvent>) => {
             e.stopPropagation();
             if (!canClick) return;
-            playPop();
             onClick();
         };
 

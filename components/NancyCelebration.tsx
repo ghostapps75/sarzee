@@ -1,62 +1,24 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
+import { useGameSounds } from '@/lib/useGameSounds';
 
 type Props = {
     onDismiss: () => void;
 };
 
-// Global singleton to prevent multiple audio instances playing at once
-let globalNancyAudio: HTMLAudioElement | null = null;
-let isPlaying = false;
-
 export default function NancyCelebration({ onDismiss }: Props) {
-    const audioRef = useRef<HTMLAudioElement | null>(null);
-    const hasPlayedRef = useRef(false);
+    const playSound = useGameSounds();
 
     useEffect(() => {
-        // Only play once per component mount
-        if (hasPlayedRef.current) return;
-        hasPlayedRef.current = true;
-
-        // Stop any currently playing Nancy audio
-        if (globalNancyAudio && isPlaying) {
-            globalNancyAudio.pause();
-            globalNancyAudio.currentTime = 0;
-            isPlaying = false;
-        }
-
-        // Create new audio instance
-        const audio = new Audio('/sounds/nancy.mp3');
-        audio.volume = 0.6;
-        audioRef.current = audio;
-        globalNancyAudio = audio;
-        isPlaying = true;
-        
-        void audio.play().catch((err) => {
-            console.warn('Audio play failed:', err);
-            isPlaying = false;
-        });
-
-        // Auto-dismiss after 5 seconds
-        const timer = setTimeout(() => {
-            onDismiss();
-        }, 5000);
-        
-        // Mark as not playing when audio ends
-        audio.addEventListener('ended', () => {
-            isPlaying = false;
-        });
-
-        return () => {
-            clearTimeout(timer);
-            // Only clear global if this is still the active instance
-            if (audioRef.current === globalNancyAudio) {
-                globalNancyAudio = null;
-                isPlaying = false;
-            }
-        };
-    }, [onDismiss]);
+        // The overlay only mounts when the celebration fires, so this runs once per
+        // celebration. Volume and file come from lib/sounds.ts like every other sound.
+        playSound('nancy');
+        const timer = setTimeout(onDismiss, 5000);
+        return () => clearTimeout(timer);
+        // Playing again on every render would retrigger the sound; this is mount-only.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     return (
         <div

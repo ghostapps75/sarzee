@@ -168,7 +168,7 @@ export default function Page() {
             canInteract={canInteractDice}
             diceColor={playerDiceColors[activePlayer] || '#FFFFFF'}
             onTurnComplete={game.handleTurnComplete}
-            onImpact={() => playSound('/sounds/hit.mp3', 0.45)}
+            onImpact={() => playSound('impact')}
             values={gameState.diceValues}
             lowPower={viewport.lowPower}
             showDebugNumbers={isDev && showDieNumbers}

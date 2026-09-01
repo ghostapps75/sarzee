@@ -18,6 +18,8 @@ lib/
   boards.ts            Every board: artwork, geometry, palette, dice finish.
   useBoardLayout.ts    Projects board-image coordinates into screen pixels.
   useSarzeeGame.ts     Game state and the actions that change it.
+  sounds.ts            Every sound: file, volume, preload and encoding profile.
+  useGameSounds.ts     The only thing in the app that touches an Audio element.
   useCpuTurn.ts        Drives CPU seats through the same actions a human uses.
   diceSimulation.ts    Headless physics roll (see below).
   dieFaces.ts          Face/axis mapping and the pip relabelling.
@@ -89,6 +91,31 @@ screen is real rigid-body motion, and the outcome was fixed before the first fra
 `npm test` checks all 36 face combinations and asserts that hundreds of rolls land legally
 and display the intended values.
 
+### Sound
+
+`lib/sounds.ts` is the registry. Adding a sound is three steps:
+
+1. Drop the file in `public/sounds/`.
+2. Add an entry: its `volume`, whether it `preload`s eagerly, and its `profile`.
+3. `npm run opt:audio`.
+
+The script reads that same registry, so encoding settings and playback volume can't drift
+apart. `ui` sounds become mono 96k; `feature` sounds stay stereo at 128k. Everything gets
+level-matched — short effects on RMS with a limiter, longer clips to EBU R128 — so a new
+sound arrives at roughly the same loudness as the rest and `volume` stays a creative
+choice rather than a correction.
+
+It rewrites files in place and MP3 is lossy, so `scripts/audio-manifest.json` records what
+it produced and unchanged files are skipped. Use `--force` to re-encode anyway, and expect
+generation loss if you do it repeatedly.
+
+Two things worth knowing:
+
+- **Strip metadata.** `sarzee.mp3` was 2,182 KB, of which 2,079 KB was an embedded album
+  cover. The pipeline drops ID3 tags, which is where most of the savings came from.
+- **Provenance goes with the tags.** If a clip's origin matters to you, note it somewhere
+  else — the encoder removes artist and title along with the artwork.
+
 ## Scripts
 
 | | |
@@ -97,6 +124,7 @@ and display the intended values.
 | `npm run build` | static export to `out/` |
 | `npm test` | rules and dice-simulation tests |
 | `npm run opt:textures` | downsize/re-encode art in `public/` (`-- --dry` to preview) |
+| `npm run opt:audio` | encode and level-match sounds (`-- --dry`, `-- --force`) |
 
 ## Deployment
 

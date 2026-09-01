@@ -151,11 +151,14 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         (idx: number) => {
             if (!gameState || isRolling || gameState.rollsLeft === 3) return;
             const engine = enginesRef.current[activePlayer];
+            const wasHeld = gameState.heldDice[idx];
             engine.toggleHold(idx);
             const states = syncStates();
+            // Only click when the engine actually accepted it, so a rejected hold is silent.
+            if (states[activePlayer].heldDice[idx] !== wasHeld) playSound('hold');
             setPotentialScores(computePotentialScores(engine, states[activePlayer]));
         },
-        [gameState, isRolling, activePlayer, syncStates]
+        [gameState, isRolling, activePlayer, syncStates, playSound]
     );
 
     const roll = useCallback(() => {
@@ -186,7 +189,7 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         setPotentialScores(after.rollsLeft === 3 ? emptyPotentials() : computePotentialScores(engine, after));
 
         setIsRolling(true);
-        playSound('/sounds/roll.mp3', 0.7);
+        playSound('roll');
         if (watchdog.current) clearTimeout(watchdog.current);
         watchdog.current = setTimeout(() => setIsRolling(false), ROLL_WATCHDOG_MS);
 
@@ -239,7 +242,7 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
                 return;
             }
 
-            playSound('/sounds/score.mp3', 0.6);
+            playSound('score');
             const states = syncStates();
             const nextPlayer = (activePlayer + 1) % playerCount;
             setActivePlayer(nextPlayer);
