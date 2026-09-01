@@ -1,7 +1,7 @@
 // components/MultiPlayerScorecard.tsx
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScoreCategory } from '@/lib/types';
 
 type Scorecard = Record<ScoreCategory, number | null>;
@@ -19,6 +19,7 @@ interface MultiPlayerScorecardProps {
   onSelectCategory: (cat: ScoreCategory) => void;
   mustPick: boolean;
   className?: string;
+  highlightedCategory?: ScoreCategory | null;
 }
 
 function calcUpperSubtotal(scorecard: Record<ScoreCategory, number | null> | null) {
@@ -44,7 +45,8 @@ export default function MultiPlayerScorecard({
   canSelectCategory,
   onSelectCategory,
   mustPick,
-  className = ''
+  className = '',
+  highlightedCategory = null
 }: MultiPlayerScorecardProps) {
   // State for viewed player (Tab)
   const [viewedPlayer, setViewedPlayer] = React.useState(activePlayerIndex);
@@ -82,7 +84,7 @@ export default function MultiPlayerScorecard({
   const LABELS_W = 279;
   const COL_W = 106; // Approx 385 - 279
   const VIEW_W = LABELS_W + COL_W; // 385
-  const VIEW_ASPECT = `${VIEW_W}/${IMG_H}`; // 385 / 1024
+  // (aspect is applied by measurement below rather than the CSS aspect-ratio property)
 
   // Width percentages for the split panes
   const LEFT_PANE_W_PCT = (LABELS_W / VIEW_W) * 100;
@@ -139,18 +141,24 @@ export default function MultiPlayerScorecard({
     const showPotential = isActive && !isTaken && potential !== undefined && canSelectCategory;
     const isZero = isTaken && score === 0;
     const displayVal = isTaken ? score : showPotential ? potential : '';
+    const isHighlighted = isActive && highlightedCategory === cat;
 
     return (
       <div
-        className={`absolute flex items-center justify-center font-handwriting transition-colors duration-200 ${!isTaken && isActive && canSelectCategory ? 'cursor-pointer hover:bg-blue-500/10' : ''
-          }`}
+        className={`absolute flex items-center justify-center font-handwriting transition-all duration-200 ${
+          !isTaken && isActive && canSelectCategory ? 'cursor-pointer hover:bg-blue-500/10' : ''
+        } ${
+          // Out of rolls: the player has to commit somewhere, so make the open boxes obvious.
+          showPotential && mustPick && !isHighlighted ? 'bg-blue-500/10 ring-1 ring-inset ring-blue-500/40' : ''
+        } ${isHighlighted ? 'bg-yellow-400/20 animate-pulse border border-yellow-500/50' : ''}`}
         style={{ top: `${topPct}%`, height: `${heightPct}%`, left: 0, right: 0 }}
         onClick={() => !isTaken && isActive && canSelectCategory && onSelectCategory(cat)}
       >
         <span
           className={`
             text-[14px] sm:text-lg lg:text-xl transition-all duration-200
-            ${showPotential ? 'text-blue-600 font-extrabold scale-110 drop-shadow-sm' : ''}
+            ${showPotential && !isHighlighted ? 'text-blue-600 font-extrabold scale-110 drop-shadow-sm' : ''}
+            ${isHighlighted ? 'text-yellow-600 scale-125 font-extrabold drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]' : ''}
             ${isTaken && !isZero ? 'text-slate-900 font-bold' : ''}
             ${isZero ? 'text-slate-300 font-normal' : ''}
           `}
@@ -235,8 +243,35 @@ export default function MultiPlayerScorecard({
     </div>
   );
 
+  // The card is an image with values positioned on top, so it must keep its exact
+  // aspect ratio. CSS alone cannot "contain" a non-replaced box, so measure the area
+  // and size the card to fit inside it. Without this the card overflows a narrow rail
+  // and gets clipped down to a column of floating numbers.
+  const fitRef = useRef<HTMLDivElement>(null);
+  const [cardSize, setCardSize] = useState<{ w: number; h: number } | null>(null);
+
+  useEffect(() => {
+    const el = fitRef.current;
+    if (!el) return;
+    const fit = (w: number, h: number) => {
+      if (w <= 0 || h <= 0) return;
+      const aspect = VIEW_W / IMG_H;
+      const width = Math.min(w, h * aspect);
+      setCardSize({ w: width, h: width / aspect });
+    };
+    const observer = new ResizeObserver((entries) => {
+      for (const e of entries) fit(e.contentRect.width, e.contentRect.height);
+    });
+    observer.observe(el);
+    const r = el.getBoundingClientRect();
+    fit(r.width, r.height);
+    return () => observer.disconnect();
+    // VIEW_W and IMG_H are fixed metrics of the scorecard artwork, not reactive values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <div className={`relative flex flex-col w-full h-full ${className}`}>
+    <div className={`relative flex flex-col w-full h-full min-h-0 ${className}`}>
       {/* Tabs Header */}
       <div className="flex w-full pt-2 pb-2 bg-white/95 z-20 border-b-2 border-black shrink-0">
         <div className="flex w-full px-2 gap-1 overflow-x-auto no-scrollbar">
@@ -262,8 +297,11 @@ export default function MultiPlayerScorecard({
       </div>
 
       {/* Main Content Area: Aspect-Locked Single Player View */}
-      <div className="flex-1 w-full relative overflow-hidden flex justify-center items-start">
-        <div className="h-full relative shadow-xl" style={{ aspectRatio: VIEW_ASPECT }}>
+      <div ref={fitRef} className="flex-1 min-h-0 w-full relative overflow-hidden flex justify-center items-start">
+        <div
+          className="relative shadow-xl"
+          style={cardSize ? { width: cardSize.w, height: cardSize.h } : { width: 0, height: 0 }}
+        >
 
           {/* Left Pane: Static Labels */}
           <div className="absolute top-0 bottom-0 left-0 overflow-hidden" style={{ width: `${LEFT_PANE_W_PCT}%` }}>

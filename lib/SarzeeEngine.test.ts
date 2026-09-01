@@ -61,6 +61,70 @@ async function runTests() {
     assert.strictEqual(state.rollsLeft, 3);
     console.log("  PASS");
 
+    // Test 6: the Yahtzee bonus is forfeited by a scratched Yahtzee box
+    console.log("Test 6: no bonus after a scratched Sarzee");
+    {
+        const e = new SarzeeEngine();
+        e.rollDice([1, 2, 3, 4, 6]);
+        e._forceDice([1, 2, 3, 4, 6]);
+        e.commitScore(ScoreCategory.Yahtzee); // scratch it for 0
+
+        e.rollDice([5, 5, 5, 5, 5]);
+        e._forceDice([5, 5, 5, 5, 5]);
+        e.commitScore(ScoreCategory.Fives);
+
+        const s = e.getGameState();
+        assert.strictEqual(s.scorecard[ScoreCategory.Yahtzee], 0);
+        assert.strictEqual(s.yahtzeeBonus, 0, 'a scratched Sarzee box forfeits the bonus');
+        assert.strictEqual(s.totalScore, 25, 'five fives is 25, with no +100');
+    }
+    {
+        const e = new SarzeeEngine();
+        e.rollDice([5, 5, 5, 5, 5]);
+        e._forceDice([5, 5, 5, 5, 5]);
+        e.commitScore(ScoreCategory.Yahtzee); // 50
+
+        e.rollDice([6, 6, 6, 6, 6]);
+        e._forceDice([6, 6, 6, 6, 6]);
+        e.commitScore(ScoreCategory.Sixes);
+
+        const s = e.getGameState();
+        assert.strictEqual(s.yahtzeeBonus, 100, 'a second Sarzee after scoring 50 pays the bonus');
+        assert.strictEqual(s.totalScore, 50 + 30 + 100);
+    }
+    console.log("  PASS");
+
+    // Test 7: Joker rule
+    console.log("Test 7: Joker rule");
+    {
+        const e = new SarzeeEngine();
+        // Yahtzee box still open: five of a kind is NOT a full house or a straight.
+        e.rollDice([4, 4, 4, 4, 4]);
+        e._forceDice([4, 4, 4, 4, 4]);
+        assert.strictEqual(e.calculatePotentialScore(ScoreCategory.FullHouse), 0);
+        assert.strictEqual(e.calculatePotentialScore(ScoreCategory.LargeStraight), 0);
+
+        e.commitScore(ScoreCategory.Yahtzee); // 50
+
+        // Yahtzee box used but the Fours box is still open: still not a joker.
+        e.rollDice([4, 4, 4, 4, 4]);
+        e._forceDice([4, 4, 4, 4, 4]);
+        assert.strictEqual(e.calculatePotentialScore(ScoreCategory.FullHouse), 0);
+
+        e.commitScore(ScoreCategory.Fours); // now Fours is gone too
+
+        // Both gone: the joker is live.
+        e.rollDice([4, 4, 4, 4, 4]);
+        e._forceDice([4, 4, 4, 4, 4]);
+        assert.strictEqual(e.calculatePotentialScore(ScoreCategory.FullHouse), 25);
+        assert.strictEqual(e.calculatePotentialScore(ScoreCategory.SmallStraight), 30);
+        assert.strictEqual(e.calculatePotentialScore(ScoreCategory.LargeStraight), 40);
+        // Ordinary categories are unaffected by the joker.
+        assert.strictEqual(e.calculatePotentialScore(ScoreCategory.Chance), 20);
+        assert.strictEqual(e.calculatePotentialScore(ScoreCategory.Sixes), 0);
+    }
+    console.log("  PASS");
+
     console.log("ALL TESTS PASSED");
 }
 

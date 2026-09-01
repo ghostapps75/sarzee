@@ -15,8 +15,8 @@
 
 html {
   height: 100%;
-  height: 100vh;
-  height: -webkit-fill-available; /* iOS Safari fullscreen support */
+  height: 100dvh; /* Use dynamic viewport height for better mobile/tablet support */
+  height: -webkit-fill-available; /* iOS Safari fallback */
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -24,8 +24,8 @@ html {
 
 body {
   height: 100%;
-  height: 100vh;
-  height: -webkit-fill-available; /* iOS Safari fullscreen support */
+  height: 100dvh; /* Use dynamic viewport height for better mobile/tablet support */
+  height: -webkit-fill-available; /* iOS Safari fallback */
   margin: 0;
   padding: 0;
   background: var(--background);
@@ -36,7 +36,7 @@ body {
   width: 100%;
   -webkit-overflow-scrolling: touch;
   /* Ensure body fills viewport on iOS */
-  min-height: 100vh;
+  min-height: 100dvh;
   min-height: -webkit-fill-available;
 }
 

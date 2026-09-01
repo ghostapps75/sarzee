@@ -33,7 +33,7 @@ export default function NancyCelebration({ onDismiss }: Props) {
         globalNancyAudio = audio;
         isPlaying = true;
         
-        const playPromise = audio.play().catch((err) => {
+        void audio.play().catch((err) => {
             console.warn('Audio play failed:', err);
             isPlaying = false;
         });

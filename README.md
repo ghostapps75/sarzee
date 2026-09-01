@@ -1,36 +1,105 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sarzee
 
-## Getting Started
-
-First, run the development server:
+A dice game for 1–4 players, hot-seat, with optional CPU opponents and eight themed
+tabletops. Next.js static export, three.js for the dice.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run dev      # http://localhost:3000
+npm test         # game rules + dice simulation
+npm run build    # static export to out/
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## How it fits together
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+lib/
+  SarzeeEngine.ts      Rules and scoring. Knows nothing about rendering.
+  CpuAgent.ts          Hold/score decisions for the three CPU personalities.
+  boards.ts            Every board: artwork, geometry, palette, dice finish.
+  useBoardLayout.ts    Projects board-image coordinates into screen pixels.
+  useSarzeeGame.ts     Game state and the actions that change it.
+  useCpuTurn.ts        Drives CPU seats through the same actions a human uses.
+  diceSimulation.ts    Headless physics roll (see below).
+  dieFaces.ts          Face/axis mapping and the pip relabelling.
+components/
+  BoardStage.tsx       Paints the board and positions everything on it.
+  DiceArena.tsx        The 3D felt: owns the roll, renders the dice.
+  MultiPlayerScorecard Illustrated paper scorecard (wide screens).
+  ScoreTable.tsx       DOM scorecard (narrow screens).
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Layout: board coordinates, not viewport percentages
 
-## Learn More
+Every hotspot — the felt, the ROLL plate, the board itself — is defined once in
+`lib/boards.ts` as a rect in **fractions of the source image**:
 
-To learn more about Next.js, take a look at the following resources:
+```ts
+felt: { x: 0.3365, y: 0.2185, w: 0.3465, h: 0.5288 }
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`useBoardLayout` measures the container, works out how the image is being drawn, and
+projects those rects into pixels through that same transform. So the dice arena is always
+exactly on the felt and the ROLL button always sits in its recess, at any window size and
+on any board.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Two arrangements, chosen from the window's shape rather than from device sniffing:
 
-## Deploy on Vercel
+| Shape | Layout |
+|---|---|
+| wider than 1.2:1 | board fills the screen, scorecard in a rail on the right |
+| taller than that | board framed whole at the top, scorecard below |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+In the stacked layout the board is fitted to its **`unit`** rect — the wooden board
+without the surrounding table dressing — so the theme survives on a phone. The plants and
+coffee cup are the first thing worth losing; the board is not.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+To check alignment, run the dev server and press **L** (or add `?debugLayout=1`) to draw
+the projected rects over the artwork.
+
+### Adding a board
+
+1. Drop the image in `public/textures/`.
+2. Add an entry to `BOARDS` in `lib/boards.ts`.
+3. `npm run opt:textures` to downsize and re-encode it.
+
+The shared `DEFAULT_FELT` / `DEFAULT_ROLL_PLATE` / `DEFAULT_BOARD_UNIT` values fit every
+current board, since they come from one template. A board framed differently can override
+any of them.
+
+### The dice
+
+A physics roll looks right but cannot be told what to land on, and occasionally throws a
+die off the table. A hand-authored animation is controllable but reads as fake, because at
+some point it has to rotate the die into its answer.
+
+`lib/diceSimulation.ts` takes a third route, exploiting the fact that a die is a symmetric
+cube:
+
+1. Simulate a completely free roll headlessly (cannon-es), in about 8 ms.
+2. Discard and re-run if any die left the felt, ended up cocked, or is still moving. Bad
+   rolls are never shown, so dice cannot land off the surface.
+3. Read which face happened to land up, then rotate the **pips inside the cube** so that
+   face shows the value the game already decided.
+4. Play back the recorded trajectory.
+
+Step 3 is invisible: the relabelling comes from the cube's own rotation group, so opposite
+faces still sum to seven and the die is still a proper right-handed die. Everything on
+screen is real rigid-body motion, and the outcome was fixed before the first frame.
+
+`npm test` checks all 36 face combinations and asserts that hundreds of rolls land legally
+and display the intended values.
+
+## Scripts
+
+| | |
+|---|---|
+| `npm run dev` | dev server on `0.0.0.0:3000` |
+| `npm run build` | static export to `out/` |
+| `npm test` | rules and dice-simulation tests |
+| `npm run opt:textures` | downsize/re-encode art in `public/` (`-- --dry` to preview) |
+
+## Deployment
+
+Static export (`output: 'export'`), deployed to Netlify. Note that `public/` filenames are
+case-sensitive on most hosts — keep the names in `lib/boards.ts` matching the files
+exactly, and make sure new art is actually committed.

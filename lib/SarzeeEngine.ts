@@ -31,19 +31,11 @@ export class SarzeeEngine {
     }
 
     public toggleHold(index: number) {
-        console.log(`Engine: toggleHold(${index}). rollsLeft: ${this.state.rollsLeft}`);
-        if (this.state.rollsLeft === 3 || this.state.rollsLeft === 0 || this.state.isGameOver) {
-            // Exception: If rollsLeft is 0, we are selecting a score, not holding dice?
-            // Actually standard Yahtzee allows toggling hold even after last roll? No, usually you just pick a score.
-            // But definitely cannot hold if you haven't rolled yet (rollsLeft=3).
-            console.log("Engine: toggleHold rejected. Invalid phase.");
-            return;
-        }
-
-        if (index >= 0 && index < 5) {
-            this.state.heldDice[index] = !this.state.heldDice[index];
-            console.log(`Engine: toggleHold success. New state for die ${index}: ${this.state.heldDice[index]}`);
-        }
+        // Holding is only meaningful between rolls: there is nothing to keep before the
+        // first roll, and after the third the only move left is to pick a category.
+        if (this.state.rollsLeft === 3 || this.state.rollsLeft === 0 || this.state.isGameOver) return;
+        if (index < 0 || index > 4) return;
+        this.state.heldDice[index] = !this.state.heldDice[index];
     }
 
     public rollDice(newValues: DieValue[]) {
@@ -82,6 +74,18 @@ export class SarzeeEngine {
             sum += d;
         }
 
+        // Joker rule: once the Yahtzee box has been used (50 or scratched) and the matching
+        // upper box is also gone, a further five-of-a-kind may be scored in Full House /
+        // Small Straight / Large Straight at full face value.
+        if (this.isJokerActive(dice)) {
+            switch (category) {
+                case ScoreCategory.FullHouse: return 25;
+                case ScoreCategory.SmallStraight: return 30;
+                case ScoreCategory.LargeStraight: return 40;
+                default: break; // everything else scores normally
+            }
+        }
+
         switch (category) {
             case ScoreCategory.Ones: return counts[1] * 1;
             case ScoreCategory.Twos: return counts[2] * 2;
@@ -97,14 +101,9 @@ export class SarzeeEngine {
                 return counts.some(c => c >= 4) ? sum : 0;
 
             case ScoreCategory.FullHouse:
-                // 3 of one, 2 of another OR 5 of one (Technically 5 of a kind is also a full house in some variants, but standard Yahtzee validation usually checks for 3+2 or 5)
-                // Standard rule: 3 of one number and 2 of another.
-                // A Yahtzee (5 of a kind) can be scored as a Full House (25 pts) if Yahtzee box is full? Or just generally?
-                // Let's implement strict boolean check: (3 val A && 2 val B) || (5 val A)
-                const has3 = counts.some(c => c === 3);
-                const has2 = counts.some(c => c === 2);
-                const has5 = counts.some(c => c === 5);
-                return (has3 && has2) || has5 ? 25 : 0;
+                // Strictly 3 of one number and 2 of another. Five of a kind only counts
+                // when the Joker rule is active (handled above).
+                return counts.some(c => c === 3) && counts.some(c => c === 2) ? 25 : 0;
 
             case ScoreCategory.SmallStraight:
                 // 4 sequential dice
@@ -153,8 +152,9 @@ export class SarzeeEngine {
             throw new Error('Must roll at least once');
         }
 
-        // Check for bonus Yahtzee: Yahtzee already scored AND current dice form a Yahtzee
-        const isBonusYahtzee = this.state.scorecard[ScoreCategory.Yahtzee] !== null && 
+        // Check for bonus Yahtzee. Standard rule: the bonus only applies if the Yahtzee
+        // box was actually scored as 50. A scratched Yahtzee (0) forfeits all future bonuses.
+        const isBonusYahtzee = this.state.scorecard[ScoreCategory.Yahtzee] === 50 &&
                                this.isYahtzee(this.state.diceValues);
 
         const score = this.calculatePotentialScore(category);
@@ -170,6 +170,27 @@ export class SarzeeEngine {
 
         // Reset for next turn
         this.advanceTurn();
+    }
+
+    /**
+     * True when the current dice are five of a kind, the Yahtzee box has already been
+     * used, and the upper box for that number is also filled. Under those conditions the
+     * roll acts as a wildcard in the three "pattern" categories.
+     */
+    private isJokerActive(dice: DieValue[]): boolean {
+        if (!this.isYahtzee(dice)) return false;
+        if (this.state.scorecard[ScoreCategory.Yahtzee] === null) return false;
+
+        const upperCats = [
+            ScoreCategory.Ones,
+            ScoreCategory.Twos,
+            ScoreCategory.Threes,
+            ScoreCategory.Fours,
+            ScoreCategory.Fives,
+            ScoreCategory.Sixes,
+        ];
+        const matchingUpper = upperCats[dice[0] - 1];
+        return this.state.scorecard[matchingUpper] !== null;
     }
 
     private isYahtzee(dice: DieValue[]): boolean {

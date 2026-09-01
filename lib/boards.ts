@@ -1,0 +1,470 @@
+// lib/boards.ts
+//
+// Single source of truth for every board: its artwork, its geometry, its palette
+// and the way dice look on it. Adding a new board means adding one entry here and
+// dropping the image in /public/textures — nothing else needs to change.
+//
+// GEOMETRY NOTE
+// -------------
+// All rects are expressed as fractions (0..1) of the *source image*, never as
+// percentages of the viewport. That is what makes the layout survive being resized:
+// `useBoardLayout` measures the container once and projects these rects into real
+// pixels through the same transform it uses to draw the image, so the felt is always
+// exactly on the felt no matter what shape the screen is.
+//
+// The values below were measured off board_texture.jpg and verified against all
+// eight boards — they share a common template, so one set fits them all. A board
+// with different framing can override `felt` / `rollPlate` / `unit` individually.
+
+export interface FracRect {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}
+
+/** The playing surface the dice roll on. */
+export const DEFAULT_FELT: FracRect = { x: 0.3365, y: 0.2185, w: 0.3465, h: 0.5288 };
+
+/**
+ * The region the 3D layer covers. Wider than the felt so held dice can sit in the side
+ * trays, off the playing surface. Kept symmetric about the felt's centre and identical to
+ * it vertically, which means the felt is simply the middle slice of the canvas — so the
+ * world the dice roll in is unchanged by the extra room.
+ */
+export const DEFAULT_ARENA: FracRect = { x: 0.22975, y: 0.2185, w: 0.56, h: 0.5288 };
+
+/**
+ * The column of recessed slots down the left of the board. Held dice park here, one per
+ * slot — the artwork was already drawn with five of them.
+ */
+export const DEFAULT_HELD_TRAY: FracRect = { x: 0.2428, y: 0.255, w: 0.0461, h: 0.4505 };
+
+/** The recessed plate along the bottom of the board where the ROLL button sits. */
+export const DEFAULT_ROLL_PLATE: FracRect = { x: 0.3588, y: 0.7945, w: 0.2954, h: 0.1430 };
+
+/**
+ * The wooden board itself, without the surrounding table dressing. On narrow screens
+ * we frame this instead of the whole image — the plants and coffee cup are the first
+ * things worth losing, and keeping the board whole is what preserves the theme.
+ */
+export const DEFAULT_BOARD_UNIT: FracRect = { x: 0.2125, y: 0.002, w: 0.588, h: 0.996 };
+
+export interface BoardTheme {
+    text: string;
+    bg: string;
+    bgAlpha: string;
+    containerBg: string;
+    border: string;
+    borderAlpha: string;
+    focus: string;
+    focusRing: string;
+    placeholder: string;
+    accent: string;
+    accentHover: string;
+    buttonGradientFrom: string;
+    buttonGradientTo: string;
+    buttonBorder: string;
+    buttonBorderHover: string;
+    diceBorder: string;
+    diceBorderSelected: string;
+    titleGradient: string;
+}
+
+/**
+ * Ambient motes drifting over the felt.
+ *
+ * Only worth having where the effect is part of the scene — embers over lava, wisps in
+ * the forest, stardust in space. On the wood-and-felt boards it reads as grit on the
+ * screen rather than atmosphere, so those boards simply omit it.
+ */
+export interface BoardParticles {
+    color: string;
+    /** 'rise' floats upward and recycles at the bottom; 'drift' is a slow zero-G orbit. */
+    motion: 'rise' | 'drift';
+    /** Roughly how many at full quality; halved on low-power devices. */
+    count: number;
+}
+
+/** How dice are rendered on a given board. */
+export interface DiceSkin {
+    /** When set, every player's dice use this colour instead of their chosen one. */
+    forceColor?: string;
+    roughness: number;
+    metalness: number;
+    transparent: boolean;
+    opacity: number;
+    /** When set, overrides the automatic light/dark pip colour. */
+    pipColor?: string;
+}
+
+export interface BoardDefinition {
+    id: string;
+    name: string;
+    file: string;
+    description: string;
+    imgW: number;
+    imgH: number;
+    felt: FracRect;
+    /** Region the 3D layer covers; must contain `felt` and share its vertical extent. */
+    arena: FracRect;
+    /** Where held dice park, divided into one slot per die. */
+    heldTray: FracRect;
+    rollPlate: FracRect;
+    unit: FracRect;
+    /** Player dice colours, in seat order. */
+    diceColors: string[];
+    /** Ambient motes, when the board's setting calls for them. */
+    particles?: BoardParticles;
+    diceSkin: DiceSkin;
+    theme: BoardTheme;
+}
+
+const DEFAULT_SKIN: DiceSkin = {
+    roughness: 0.15,
+    metalness: 0.3,
+    transparent: false,
+    opacity: 1.0,
+};
+
+export const BOARDS: BoardDefinition[] = [
+    {
+        id: 'the-cafe',
+        name: 'Vintage Café',
+        file: 'board_texture.jpg',
+        description: 'Cozy rustic mahogany table with warm ambient cafe lighting.',
+        imgW: 1408,
+        imgH: 752,
+        felt: DEFAULT_FELT,
+        arena: DEFAULT_ARENA,
+        heldTray: DEFAULT_HELD_TRAY,
+        rollPlate: DEFAULT_ROLL_PLATE,
+        unit: DEFAULT_BOARD_UNIT,
+        // Copper rather than the old '#3B2820' — that was the same brown as the felt,
+        // which made seat 1's dice effectively invisible on this board.
+        diceColors: ['#C2703D', '#F2E6D8', '#2A8CA1', '#7D9652'],
+        diceSkin: DEFAULT_SKIN,
+        theme: {
+            text: '#F2E6D8',
+            bg: '#3B2820',
+            bgAlpha: 'rgba(59, 40, 32, 0.8)',
+            containerBg: 'rgba(59, 40, 32, 0.95)',
+            border: '#7D9652',
+            borderAlpha: 'rgba(125, 150, 82, 0.5)',
+            focus: '#2A8CA1',
+            focusRing: 'rgba(42, 140, 161, 0.3)',
+            placeholder: 'rgba(242, 230, 216, 0.5)',
+            accent: '#2A8CA1',
+            accentHover: '#23899c',
+            buttonGradientFrom: '#3B2820',
+            buttonGradientTo: '#5a3f33',
+            buttonBorder: 'rgba(125, 150, 82, 0.3)',
+            buttonBorderHover: 'rgba(125, 150, 82, 0.5)',
+            diceBorder: '#7D9652',
+            diceBorderSelected: '#2A8CA1',
+            titleGradient: 'linear-gradient(to right, #7D9652, #2A8CA1, #7D9652)',
+        },
+    },
+    {
+        id: 'the-emerald-forest',
+        name: 'Emerald Forest',
+        file: 'emeraldforest_board.jpg',
+        description: 'Ancient mossy jade runes, glowing forest wisps, and elven magic.',
+        imgW: 1920,
+        imgH: 1025,
+        felt: DEFAULT_FELT,
+        arena: DEFAULT_ARENA,
+        heldTray: DEFAULT_HELD_TRAY,
+        rollPlate: DEFAULT_ROLL_PLATE,
+        unit: DEFAULT_BOARD_UNIT,
+        diceColors: ['#E6AF2E', '#4ABFAC', '#C05746', '#2E4830'],
+        // The forest wisps the board description promises.
+        particles: { color: '#4DEE9E', motion: 'rise', count: 55 },
+        diceSkin: {
+            roughness: 0.08,
+            metalness: 0.05,
+            transparent: true,
+            opacity: 0.88, // translucent forest jade
+            pipColor: '#FFFFFF',
+        },
+        theme: {
+            text: '#E6AF2E',
+            bg: '#2E4830',
+            bgAlpha: 'rgba(46, 72, 48, 0.8)',
+            containerBg: 'rgba(46, 72, 48, 0.95)',
+            border: '#4ABFAC',
+            borderAlpha: 'rgba(74, 191, 172, 0.5)',
+            focus: '#4ABFAC',
+            focusRing: 'rgba(74, 191, 172, 0.3)',
+            placeholder: 'rgba(230, 175, 46, 0.5)',
+            accent: '#4ABFAC',
+            accentHover: '#3aa896',
+            buttonGradientFrom: '#2E4830',
+            buttonGradientTo: '#3a5a3d',
+            buttonBorder: 'rgba(74, 191, 172, 0.3)',
+            buttonBorderHover: 'rgba(74, 191, 172, 0.5)',
+            diceBorder: '#4ABFAC',
+            diceBorderSelected: '#E6AF2E',
+            titleGradient: 'linear-gradient(to right, #E6AF2E, #4ABFAC, #E6AF2E)',
+        },
+    },
+    {
+        id: 'the-forge',
+        name: 'Obsidian Forge',
+        file: 'forge.jpg',
+        description: 'Deep underground volcanic anvil stage with flowing orange magma.',
+        imgW: 1408,
+        imgH: 752,
+        felt: DEFAULT_FELT,
+        arena: DEFAULT_ARENA,
+        heldTray: DEFAULT_HELD_TRAY,
+        rollPlate: DEFAULT_ROLL_PLATE,
+        unit: DEFAULT_BOARD_UNIT,
+        diceColors: ['#FF8C00', '#1C1C1C', '#8A2323', '#4A5D6E'],
+        // Embers coming off the magma.
+        particles: { color: '#FF5500', motion: 'rise', count: 90 },
+        diceSkin: {
+            forceColor: '#1a1816', // dark obsidian stone
+            roughness: 0.8,
+            metalness: 0.1,
+            transparent: false,
+            opacity: 1.0,
+            pipColor: '#FF6A00', // glowing magma pips
+        },
+        theme: {
+            text: '#FF8C00',
+            bg: '#1C1C1C',
+            bgAlpha: 'rgba(28, 28, 28, 0.8)',
+            containerBg: 'rgba(28, 28, 28, 0.95)',
+            border: '#8A2323',
+            borderAlpha: 'rgba(138, 35, 35, 0.5)',
+            focus: '#FF8C00',
+            focusRing: 'rgba(255, 140, 0, 0.3)',
+            placeholder: 'rgba(255, 140, 0, 0.5)',
+            accent: '#FF8C00',
+            accentHover: '#e67d00',
+            buttonGradientFrom: '#FF8C00',
+            buttonGradientTo: '#cc7000',
+            buttonBorder: 'rgba(255, 140, 0, 0.3)',
+            buttonBorderHover: 'rgba(255, 140, 0, 0.5)',
+            diceBorder: '#8A2323',
+            diceBorderSelected: '#FF8C00',
+            titleGradient: 'linear-gradient(to right, #FF8C00, #8A2323, #FF8C00)',
+        },
+    },
+    {
+        id: 'franklins-tower',
+        name: "Franklin's Tower",
+        file: 'gd_board.JPG',
+        description: 'Classic psychedelic rock arena with crimson and indigo soundwaves.',
+        imgW: 1920,
+        imgH: 1025,
+        felt: DEFAULT_FELT,
+        arena: DEFAULT_ARENA,
+        heldTray: DEFAULT_HELD_TRAY,
+        rollPlate: DEFAULT_ROLL_PLATE,
+        unit: DEFAULT_BOARD_UNIT,
+        diceColors: ['#C01E32', '#2056A2', '#E68A00', '#1E8F4B'],
+        diceSkin: DEFAULT_SKIN,
+        theme: {
+            text: '#FFFFFF',
+            bg: '#1E3A5F',
+            bgAlpha: 'rgba(30, 58, 95, 0.8)',
+            containerBg: 'rgba(30, 58, 95, 0.95)',
+            border: '#2056A2',
+            borderAlpha: 'rgba(32, 86, 162, 0.5)',
+            focus: '#E68A00',
+            focusRing: 'rgba(230, 138, 0, 0.3)',
+            placeholder: 'rgba(255, 255, 255, 0.5)',
+            accent: '#C01E32',
+            accentHover: '#a91a29',
+            buttonGradientFrom: '#C01E32',
+            buttonGradientTo: '#8B1623',
+            buttonBorder: 'rgba(192, 30, 50, 0.3)',
+            buttonBorderHover: 'rgba(192, 30, 50, 0.5)',
+            diceBorder: '#2056A2',
+            diceBorderSelected: '#E68A00',
+            titleGradient: 'linear-gradient(to right, #E68A00, #2056A2, #E68A00)',
+        },
+    },
+    {
+        id: 'linguiniiis-maple-shack',
+        name: "Linguiniii's Maple Shack",
+        file: 'linguiniii_board.jpg',
+        description: 'Warm autumn cabin vibe with fresh organic maple syrup barrels.',
+        imgW: 1920,
+        imgH: 1025,
+        felt: DEFAULT_FELT,
+        arena: DEFAULT_ARENA,
+        heldTray: DEFAULT_HELD_TRAY,
+        rollPlate: DEFAULT_ROLL_PLATE,
+        unit: DEFAULT_BOARD_UNIT,
+        diceColors: ['#C93F38', '#4A525A', '#6B8248', '#76B6C4'],
+        diceSkin: DEFAULT_SKIN,
+        theme: {
+            text: '#F5E6D3',
+            bg: '#5A3D2E',
+            bgAlpha: 'rgba(90, 61, 46, 0.8)',
+            containerBg: 'rgba(90, 61, 46, 0.95)',
+            border: '#6B8248',
+            borderAlpha: 'rgba(107, 130, 72, 0.5)',
+            focus: '#76B6C4',
+            focusRing: 'rgba(118, 182, 196, 0.3)',
+            placeholder: 'rgba(245, 230, 211, 0.5)',
+            accent: '#C93F38',
+            accentHover: '#b83730',
+            buttonGradientFrom: '#5A3D2E',
+            buttonGradientTo: '#7A5D4E',
+            buttonBorder: 'rgba(107, 130, 72, 0.3)',
+            buttonBorderHover: 'rgba(107, 130, 72, 0.5)',
+            diceBorder: '#6B8248',
+            diceBorderSelected: '#76B6C4',
+            titleGradient: 'linear-gradient(to right, #C93F38, #6B8248, #76B6C4)',
+        },
+    },
+    {
+        id: 'the-map-room',
+        name: 'Ancient Map Room',
+        file: 'maproom_board.jpg',
+        description: 'Mysterious antique explorers compass and aged cartography.',
+        imgW: 1920,
+        imgH: 1025,
+        felt: DEFAULT_FELT,
+        arena: DEFAULT_ARENA,
+        heldTray: DEFAULT_HELD_TRAY,
+        rollPlate: DEFAULT_ROLL_PLATE,
+        unit: DEFAULT_BOARD_UNIT,
+        diceColors: ['#649C8F', '#D9B056', '#8C2B2B', '#273C52'],
+        diceSkin: DEFAULT_SKIN,
+        theme: {
+            text: '#D9B056',
+            bg: '#273C52',
+            bgAlpha: 'rgba(39, 60, 82, 0.8)',
+            containerBg: 'rgba(39, 60, 82, 0.95)',
+            border: '#649C8F',
+            borderAlpha: 'rgba(100, 156, 143, 0.5)',
+            focus: '#649C8F',
+            focusRing: 'rgba(100, 156, 143, 0.3)',
+            placeholder: 'rgba(217, 176, 86, 0.5)',
+            accent: '#D9B056',
+            accentHover: '#c9a048',
+            buttonGradientFrom: '#273C52',
+            buttonGradientTo: '#3a5472',
+            buttonBorder: 'rgba(100, 156, 143, 0.3)',
+            buttonBorderHover: 'rgba(100, 156, 143, 0.5)',
+            diceBorder: '#649C8F',
+            diceBorderSelected: '#D9B056',
+            titleGradient: 'linear-gradient(to right, #D9B056, #649C8F, #D9B056)',
+        },
+    },
+    {
+        id: 'pirates-cove',
+        name: 'Pirates Cove',
+        file: 'pirate_board.jpg',
+        description: 'Weathered pirate treasure chest deck with doubloon gold highlights.',
+        imgW: 1024,
+        imgH: 564,
+        felt: DEFAULT_FELT,
+        arena: DEFAULT_ARENA,
+        heldTray: DEFAULT_HELD_TRAY,
+        rollPlate: DEFAULT_ROLL_PLATE,
+        unit: DEFAULT_BOARD_UNIT,
+        diceColors: ['#1A4F8B', '#D4AF37', '#A81B1B', '#E8DCC2'],
+        diceSkin: {
+            forceColor: '#eae0cc', // sun-bleached bone
+            roughness: 0.65,
+            metalness: 0.05,
+            transparent: false,
+            opacity: 1.0,
+            pipColor: '#4d3019',
+        },
+        theme: {
+            text: '#E8DCC2',
+            bg: '#1A4F8B',
+            bgAlpha: 'rgba(26, 79, 139, 0.8)',
+            containerBg: 'rgba(26, 79, 139, 0.95)',
+            border: '#D4AF37',
+            borderAlpha: 'rgba(212, 175, 55, 0.5)',
+            focus: '#D4AF37',
+            focusRing: 'rgba(212, 175, 55, 0.3)',
+            placeholder: 'rgba(232, 220, 194, 0.5)',
+            accent: '#D4AF37',
+            accentHover: '#c49f2e',
+            buttonGradientFrom: '#1A4F8B',
+            buttonGradientTo: '#2565b3',
+            buttonBorder: 'rgba(212, 175, 55, 0.3)',
+            buttonBorderHover: 'rgba(212, 175, 55, 0.5)',
+            diceBorder: '#D4AF37',
+            diceBorderSelected: '#E8DCC2',
+            titleGradient: 'linear-gradient(to right, #D4AF37, #1A4F8B, #D4AF37)',
+        },
+    },
+    {
+        id: 'space-mission',
+        name: 'Cosmic Station',
+        file: 'space_mission_board.jpg',
+        description: 'Super-sleek dark space station over a cyan gas nebula.',
+        imgW: 1920,
+        imgH: 1025,
+        felt: DEFAULT_FELT,
+        arena: DEFAULT_ARENA,
+        heldTray: DEFAULT_HELD_TRAY,
+        rollPlate: DEFAULT_ROLL_PLATE,
+        unit: DEFAULT_BOARD_UNIT,
+        // Cyan leads: the indigo that used to be first is the same value as the nebula
+        // behind it, so seat 1's dice all but disappeared.
+        diceColors: ['#4DEEEA', '#FCA311', '#C77DF3', '#211A45'],
+        // Stardust, hanging rather than rising — there is no up out there.
+        particles: { color: '#8C52FF', motion: 'drift', count: 70 },
+        diceSkin: {
+            // There is no environment map in the scene, and a near-fully metallic surface
+            // with nothing to reflect renders black. This keeps the polished look while
+            // letting the player's colour actually show.
+            roughness: 0.18,
+            metalness: 0.45,
+            transparent: false,
+            opacity: 1.0,
+        },
+        theme: {
+            text: '#4DEEEA',
+            bg: '#211A45',
+            bgAlpha: 'rgba(33, 26, 69, 0.8)',
+            containerBg: 'rgba(33, 26, 69, 0.95)',
+            border: '#C77DF3',
+            borderAlpha: 'rgba(199, 125, 243, 0.5)',
+            focus: '#4DEEEA',
+            focusRing: 'rgba(77, 238, 234, 0.3)',
+            placeholder: 'rgba(77, 238, 234, 0.5)',
+            accent: '#FCA311',
+            accentHover: '#e8940f',
+            buttonGradientFrom: '#C77DF3',
+            buttonGradientTo: '#a660d3',
+            buttonBorder: 'rgba(252, 163, 17, 0.3)',
+            buttonBorderHover: 'rgba(252, 163, 17, 0.5)',
+            diceBorder: '#C77DF3',
+            diceBorderSelected: '#FCA311',
+            titleGradient: 'linear-gradient(to right, #4DEEEA, #C77DF3, #4DEEEA)',
+        },
+    },
+];
+
+export const DEFAULT_BOARD_ID = 'the-cafe';
+
+export function getBoard(id: string): BoardDefinition {
+    return BOARDS.find((b) => b.id === id) ?? BOARDS[0];
+}
+
+/**
+ * Centres of the held-dice slots, in image fractions — the tray split into `count` rows.
+ */
+export function heldSlotCentres(board: BoardDefinition, count: number): Array<{ x: number; y: number }> {
+    const { x, y, w, h } = board.heldTray;
+    return Array.from({ length: count }, (_, i) => ({
+        x: x + w / 2,
+        y: y + ((i + 0.5) * h) / count,
+    }));
+}
+
+export function boardTextureUrl(board: BoardDefinition): string {
+    return `/textures/${board.file}`;
+}
