@@ -111,7 +111,7 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         setPlayerTypes((prev) => Array.from({ length: count }, (_, i) => prev[i] ?? 'HUMAN'));
         setCustomNames((prev) => Array.from({ length: count }, (_, i) => prev[i] || `Player ${i + 1}`));
         setPlayerDiceColors((prev) =>
-            Array.from({ length: count }, (_, i) => prev[i] || board.diceColors[i % board.diceColors.length])
+            Array.from({ length: count }, (_, i) => prev[i] || board.diceColors[i % board.diceColors.length].hex)
         );
 
         enginesRef.current = Array.from({ length: count }, () => new SarzeeEngine());

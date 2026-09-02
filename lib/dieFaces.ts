@@ -74,3 +74,49 @@ export function relabelQuaternion(settled: number, target: number): THREE.Quater
     if (!from || !to) return new THREE.Quaternion();
     return new THREE.Quaternion().setFromUnitVectors(from, to);
 }
+
+/**
+ * The 24 orientations in which a cube sits square on the table: every choice of which
+ * face is up, times the four ways it can be turned. Built once by closing the quarter-turns
+ * about each axis under multiplication.
+ */
+export const CUBE_ROTATIONS: readonly THREE.Quaternion[] = (() => {
+    const quarterTurns = [
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2),
+    ];
+    const group: THREE.Quaternion[] = [new THREE.Quaternion()];
+    // q and -q are the same rotation, hence the abs.
+    const known = (q: THREE.Quaternion) => group.some((g) => Math.abs(g.dot(q)) > 0.9999);
+    for (let i = 0; i < group.length; i++) {
+        for (const turn of quarterTurns) {
+            const next = group[i].clone().multiply(turn);
+            if (!known(next)) group.push(next);
+        }
+    }
+    return group;
+})();
+
+/**
+ * The square orientation nearest to `q`: the same face stays up and the die turns through
+ * the smallest angle that leaves its edges parallel to the table's.
+ *
+ * A held die is parked at whatever yaw (and slight tilt) it happened to land with, and a
+ * column of cubes each turned a different way reads as crooked even when their centres are
+ * perfectly in line. Settling each one to its nearest square pose is what makes the tray
+ * look tidy, and because the result is a member of the cube's own rotation group the face
+ * value — including the pip relabelling — is unchanged.
+ */
+export function nearestCubeRotation(q: THREE.Quaternion): THREE.Quaternion {
+    let best = CUBE_ROTATIONS[0];
+    let bestDot = -1;
+    for (const g of CUBE_ROTATIONS) {
+        const d = Math.abs(g.dot(q));
+        if (d > bestDot) {
+            bestDot = d;
+            best = g;
+        }
+    }
+    return best.clone();
+}

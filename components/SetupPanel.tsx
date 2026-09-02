@@ -33,6 +33,17 @@ export default function SetupPanel({
 
   const handleBoardSelect = (boardId: string) => {
     setSelectedBoard(boardId);
+
+    // Colours belong to the board, so a seat holding one the new board doesn't offer is
+    // moved to that seat's default. Otherwise going back and changing the board left
+    // players on the old palette, with no swatch showing as selected.
+    const nextPalette = getBoard(boardId).diceColors;
+    setPlayerDiceColors(
+      playerDiceColors.map((hex, i) =>
+        nextPalette.some((opt) => opt.hex === hex) ? hex : nextPalette[i % nextPalette.length].hex
+      )
+    );
+
     setStep('COUNT');
   };
 
@@ -47,7 +58,10 @@ export default function SetupPanel({
     setPlayerTypes(nextTypes);
 
     const themeDiceColors = boardOption.diceColors;
-    const nextColors = Array.from({ length: count }, (_, i) => playerDiceColors[i] || themeDiceColors[i % themeDiceColors.length]);
+    const nextColors = Array.from(
+      { length: count },
+      (_, i) => playerDiceColors[i] || themeDiceColors[i % themeDiceColors.length].hex
+    );
     setPlayerDiceColors(nextColors);
 
     setStep('PLAYERS');
@@ -80,7 +94,7 @@ export default function SetupPanel({
     setPlayerDiceColors(next);
   };
 
-  const diceColorOptions = boardOption.diceColors.map((c) => ({ hex: c, title: 'Dice colour' }));
+  const diceColorOptions = boardOption.diceColors;
 
   return (
     <div className="w-screen h-screen overflow-hidden bg-black flex items-center justify-center p-4">
@@ -178,7 +192,7 @@ export default function SetupPanel({
                       className="w-20 h-20 font-black rounded-2xl shadow-xl text-3xl transition-all transform hover:scale-110 active:scale-95 border-2 flex items-center justify-center cursor-pointer"
                       style={{
                         background: `linear-gradient(to bottom, ${themeColors.buttonGradientFrom}, ${themeColors.buttonGradientTo})`,
-                        color: themeColors.text,
+                        color: themeColors.buttonText,
                         borderColor: themeColors.buttonBorder,
                         boxShadow: `0 10px 25px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1), 0 0 15px ${themeColors.border}15`,
                       }}
@@ -209,7 +223,7 @@ export default function SetupPanel({
                 <h2 className="text-lg md:text-xl font-bold text-white text-center mb-6 uppercase tracking-wider">
                   Configure Players & Personalities
                 </h2>
-                <div className="flex flex-col gap-5 max-w-3xl mx-auto mb-6 p-1 max-h-[46vh] overflow-y-auto scrollbar-thin">
+                <div className="flex flex-col gap-5 mx-auto mb-6 p-1 max-h-[46vh] overflow-y-auto scrollbar-thin">
                   {customNames.map((name, idx) => {
                     const pType = playerTypes[idx] || 'HUMAN';
                     const pColor = playerDiceColors[idx] || '#FFFFFF';
@@ -217,7 +231,7 @@ export default function SetupPanel({
                     return (
                       <div
                         key={idx}
-                        className="rounded-2xl p-4 border bg-white/5 flex flex-col md:flex-row gap-4 items-center justify-between transition-all duration-300"
+                        className="rounded-2xl p-4 border bg-white/5 flex flex-col md:flex-row md:flex-wrap gap-4 items-center justify-between transition-all duration-300"
                         style={{
                           borderColor: `${themeColors.border}15`,
                           backgroundColor: 'rgba(255, 255, 255, 0.02)',
@@ -265,7 +279,7 @@ export default function SetupPanel({
                               <button
                                 key={t}
                                 onClick={() => updatePlayerType(idx, t)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all duration-200 ${
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap transition-all duration-200 ${
                                   isSel ? 'text-black font-extrabold shadow-sm' : 'text-gray-400 hover:text-white'
                                 }`}
                                 style={{
@@ -279,25 +293,36 @@ export default function SetupPanel({
                         </div>
 
                         {/* Player Color Dice Selector */}
-                        <div className="flex gap-2 w-full md:w-auto justify-end">
-                          {diceColorOptions.map((opt) => {
-                            const isSel = pColor === opt.hex;
-                            return (
-                              <button
-                                key={opt.hex}
-                                onClick={() => updatePlayerColor(idx, opt.hex)}
-                                className={`w-8 h-8 rounded-lg border-2 transition-all transform hover:scale-110 cursor-pointer ${
-                                  isSel ? 'scale-110 shadow-md' : 'opacity-70 hover:opacity-100'
-                                }`}
-                                style={{
-                                  backgroundColor: opt.hex,
-                                  borderColor: isSel ? themeColors.text : 'transparent',
-                                  boxShadow: isSel ? `0 0 10px ${opt.hex}80` : 'none',
-                                }}
-                                title={opt.title}
-                              />
-                            );
-                          })}
+                        {/* Six swatches plus a name; on a tablet-width card this wraps under the
+                            tabs rather than crushing the name field. */}
+                        <div className="flex flex-col items-end gap-1 w-full md:w-auto md:ml-auto shrink-0">
+                          <div className="flex gap-1.5 justify-end">
+                            {diceColorOptions.map((opt) => {
+                              const isSel = pColor === opt.hex;
+                              return (
+                                <button
+                                  key={opt.hex}
+                                  onClick={() => updatePlayerColor(idx, opt.hex)}
+                                  className={`w-7 h-7 rounded-lg border-2 transition-all transform hover:scale-110 cursor-pointer ${
+                                    isSel ? 'scale-110 shadow-md' : 'opacity-70 hover:opacity-100'
+                                  }`}
+                                  style={{
+                                    backgroundColor: opt.hex,
+                                    // Unselected swatches get a faint edge so a white or
+                                    // near-black die still reads as a swatch on the dark card.
+                                    borderColor: isSel ? themeColors.text : 'rgba(255,255,255,0.18)',
+                                    boxShadow: isSel ? `0 0 10px ${opt.hex}80` : 'none',
+                                  }}
+                                  title={opt.name}
+                                  aria-label={`${opt.name} dice`}
+                                  aria-pressed={isSel}
+                                />
+                              );
+                            })}
+                          </div>
+                          <span className="text-[10px] tracking-widest uppercase text-gray-400 leading-none">
+                            {diceColorOptions.find((opt) => opt.hex === pColor)?.name ?? 'Dice colour'}
+                          </span>
                         </div>
                       </div>
                     );
@@ -316,7 +341,7 @@ export default function SetupPanel({
                     className="font-extrabold py-3 px-10 rounded-xl shadow-xl text-base transition-all transform hover:scale-105 active:scale-95 border-2 cursor-pointer"
                     style={{
                       background: `linear-gradient(to right, ${themeColors.buttonGradientFrom}, ${themeColors.buttonGradientTo})`,
-                      color: themeColors.text,
+                      color: themeColors.buttonText,
                       borderColor: themeColors.buttonBorder,
                       boxShadow: `0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 20px ${themeColors.border}20`,
                     }}

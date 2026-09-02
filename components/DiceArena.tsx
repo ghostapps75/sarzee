@@ -15,7 +15,7 @@ import * as THREE from 'three';
 import { Canvas, useFrame } from '@react-three/fiber';
 import Die from './Die';
 import { BoardParticles, getBoard, heldSlotCentres } from '@/lib/boards';
-import { DIE_HALF, DIE_SIZE, HELD_SCALE, relabelQuaternion } from '@/lib/dieFaces';
+import { DIE_HALF, DIE_SIZE, HELD_SCALE, nearestCubeRotation, relabelQuaternion } from '@/lib/dieFaces';
 import { PLAYBACK_FPS, SimResult, simulateRoll } from '@/lib/diceSimulation';
 
 export interface DiceArenaHandle {
@@ -44,6 +44,12 @@ interface DiceArenaProps {
     boardId?: string;
     /** Fired the first time a die touches the felt on a roll. */
     onImpact?: () => void;
+    /**
+     * Fired by `triggerCelebrationShake`. The shake itself is done to the board's DOM by
+     * the host, not to the camera: the artwork is a static image behind this canvas, so
+     * moving the camera moves the dice against a board that stays put.
+     */
+    onCelebrationShake?: (intensity: number) => void;
     /**
      * The dice the game currently holds. Used to restore the display when the arena is
      * remounted mid-game — rotating a phone changes the layout, which rebuilds this
@@ -138,12 +144,24 @@ type ArenaState = {
     /** Rotation of the pips inside each cube, so physics can land on any face. */
     faceRot: THREE.Quaternion[];
     playback: Playback | null;
-    shake: number;
     rollSeq: number;
     lastEmitted: number[];
     heldSlots: Map<number, number>;
     prevHeld: boolean[];
-    heldAnim: Array<{ moving: boolean; t: number; from: THREE.Vector3; to: THREE.Vector3 }>;
+    /**
+     * A die's glide between the felt and its tray slot. `turning` is set when the die is
+     * picked up: it also settles from the yaw it landed with to its nearest square pose,
+     * so parked dice line up with the tray instead of sitting at five different angles.
+     */
+    heldAnim: Array<{
+        moving: boolean;
+        t: number;
+        from: THREE.Vector3;
+        to: THREE.Vector3;
+        turning: boolean;
+        fromQ: THREE.Quaternion;
+        toQ: THREE.Quaternion;
+    }>;
     /** Where each die sat before it was held, so un-holding puts it back. */
     preHold: THREE.Vector3[];
 };
@@ -154,7 +172,6 @@ function createArenaState(): ArenaState {
         quats: Array.from({ length: 5 }, () => new THREE.Quaternion()),
         faceRot: Array.from({ length: 5 }, () => new THREE.Quaternion()),
         playback: null,
-        shake: 0,
         rollSeq: 0,
         lastEmitted: [1, 1, 1, 1, 1],
         heldSlots: new Map(),
@@ -164,6 +181,9 @@ function createArenaState(): ArenaState {
             t: 0,
             from: new THREE.Vector3(),
             to: new THREE.Vector3(),
+            turning: false,
+            fromQ: new THREE.Quaternion(),
+            toQ: new THREE.Quaternion(),
         })),
         preHold: Array.from({ length: 5 }, () => new THREE.Vector3(0, REST_Y, 0)),
     };
@@ -215,26 +235,24 @@ function DiceLayer({
     const tmpB = useMemo(() => new THREE.Vector3(), []);
     const tmpQ = useMemo(() => new THREE.Quaternion(), []);
 
-    useFrame((three, dt) => {
-        // Camera shake, decaying.
-        if (state.shake > 0.001) {
-            state.shake *= Math.exp(-6.0 * dt);
-            three.camera.position.set(
-                (Math.random() - 0.5) * state.shake * 0.6,
-                CAMERA_Y,
-                (Math.random() - 0.5) * state.shake * 0.6
-            );
-        } else {
-            three.camera.position.set(0, CAMERA_Y, 0);
-        }
-
+    // The camera never moves. It used to be shaken on impact and for celebrations, but the
+    // board is a static image behind this canvas, so a camera shake moved the dice against
+    // a board that stood still — and a parked held die visibly trembled in its tray. Both
+    // shakes are now done to the board's DOM by BoardStage, so everything moves together.
+    useFrame((_, dt) => {
         // --- held dice bookkeeping ---
-        const glide = (i: number, to: THREE.Vector3) => {
+        const glide = (i: number, to: THREE.Vector3, square: boolean) => {
             const anim = state.heldAnim[i];
             anim.moving = true;
             anim.t = 0;
             anim.from.copy(state.positions[i]);
             anim.to.copy(to);
+            // Square up as it travels: same face up, edges parallel to the tray.
+            anim.turning = square;
+            if (square) {
+                anim.fromQ.copy(state.quats[i]);
+                anim.toQ.copy(nearestCubeRotation(state.quats[i]));
+            }
         };
 
         // Released: slide back to the spot on the felt it was picked up from, so it never
@@ -242,7 +260,7 @@ function DiceLayer({
         for (let i = 0; i < 5; i++) {
             if (!heldDice[i] && state.prevHeld[i]) {
                 state.heldSlots.delete(i);
-                glide(i, state.preHold[i]);
+                glide(i, state.preHold[i], false);
             }
         }
 
@@ -258,8 +276,10 @@ function DiceLayer({
             const justHeld = !state.prevHeld[dieIdx];
             const previous = previousSlots.get(dieIdx);
             if (justHeld) state.preHold[dieIdx].copy(state.positions[dieIdx]);
+            // A die moving down a slot because an earlier one was released is already
+            // square, so only a fresh pick-up needs to turn.
             if (justHeld || (previous !== undefined && previous !== slot)) {
-                glide(dieIdx, heldSlotPositions[slot]);
+                glide(dieIdx, heldSlotPositions[slot], justHeld);
             }
         });
         state.prevHeld = [...heldDice];
@@ -269,10 +289,14 @@ function DiceLayer({
             if (anim.moving) {
                 anim.t += dt;
                 const u = Math.min(1, anim.t / 0.4);
-                state.positions[i].lerpVectors(anim.from, anim.to, easeOutCubic(u));
+                const eased = easeOutCubic(u);
+                state.positions[i].lerpVectors(anim.from, anim.to, eased);
+                if (anim.turning) state.quats[i].slerpQuaternions(anim.fromQ, anim.toQ, eased);
                 if (u >= 1) {
                     anim.moving = false;
                     state.positions[i].copy(anim.to);
+                    if (anim.turning) state.quats[i].copy(anim.toQ);
+                    anim.turning = false;
                 }
             } else if (heldDice[i]) {
                 const slot = state.heldSlots.get(i);
@@ -307,12 +331,13 @@ function DiceLayer({
             state.quats[dieIdx].slerp(tmpQ, alpha);
         }
 
-        // First touchdown: a kick of camera shake and a clack.
+        // First touchdown: a clack, and the board takes the hit (BoardStage thumps the
+        // whole stage). This used to shake the camera instead, which made the parked held
+        // dice tremble in their tray while the painted board stood perfectly still.
         if (!pb.impacted) {
             for (let n = 0; n < pb.map.length; n++) {
                 if (state.positions[pb.map[n]].y <= REST_Y + DIE_SIZE * 0.25) {
                     pb.impacted = true;
-                    state.shake = Math.max(state.shake, 0.4);
                     onImpact?.();
                     break;
                 }
@@ -443,6 +468,7 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
     const {
         onTurnComplete,
         onImpact,
+        onCelebrationShake,
         heldDice,
         onDieClick,
         canInteract,
@@ -631,6 +657,7 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
                 // Cancel any tray glide still running on a die that is about to be thrown.
                 thrown.forEach((dieIdx) => {
                     s.heldAnim[dieIdx].moving = false;
+                    s.heldAnim[dieIdx].turning = false;
                 });
 
                 thrown.forEach((dieIdx, n) => {
@@ -654,6 +681,7 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
                         s.quats[i].identity();
                         s.faceRot[i].identity();
                         s.heldAnim[i].moving = false;
+                        s.heldAnim[i].turning = false;
                         s.preHold[i].set(0, REST_Y, 0);
                     }
                     s.lastEmitted = [1, 1, 1, 1, 1];
@@ -668,11 +696,11 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
                 getLastEmittedValues: () => s.lastEmitted.slice(),
                 getRollSeq: () => s.rollSeq,
                 triggerCelebrationShake: (intensity = 1.2) => {
-                    s.shake = intensity;
+                    onCelebrationShake?.(intensity);
                 },
             };
         },
-        [heldDice, bounds, restSpacing, onTurnComplete]
+        [heldDice, bounds, restSpacing, onTurnComplete, onCelebrationShake]
     );
 
     return (

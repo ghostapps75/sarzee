@@ -10,7 +10,7 @@
     "gen:dice": "node scripts/generate-dice.js",
     "opt:textures": "node scripts/optimize-textures.js",
     "opt:audio": "tsx scripts/optimize-audio.ts",
-    "test": "tsx lib/SarzeeEngine.test.ts && tsx lib/diceSimulation.test.ts"
+    "test": "tsx lib/SarzeeEngine.test.ts && tsx lib/diceSimulation.test.ts && tsx lib/dieFaces.test.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

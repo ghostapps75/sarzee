@@ -64,11 +64,24 @@ export interface BoardTheme {
     accentHover: string;
     buttonGradientFrom: string;
     buttonGradientTo: string;
+    /**
+     * Label colour on the solid themed buttons (player count, Launch Arena). Deliberately
+     * separate from `text`: on the Forge the button gradient *is* the text colour, which
+     * put orange numerals on an orange button and made the player-count step unreadable.
+     */
+    buttonText: string;
     buttonBorder: string;
     buttonBorderHover: string;
     diceBorder: string;
     diceBorderSelected: string;
     titleGradient: string;
+}
+
+/** One entry in a board's dice colour picker. */
+export interface DiceColorOption {
+    /** Named after the thing in the artwork it is taken from — shown as the swatch's tooltip. */
+    name: string;
+    hex: string;
 }
 
 /**
@@ -118,8 +131,12 @@ export interface BoardDefinition {
     heldTray: FracRect;
     rollPlate: FracRect;
     unit: FracRect;
-    /** Player dice colours, in seat order. */
-    diceColors: string[];
+    /**
+     * The dice colours offered on this board. The first four are the seat defaults, in seat
+     * order, so the first one is the board's signature look. Every board also offers a
+     * plain white die, and each colour is drawn from that board's own artwork.
+     */
+    diceColors: DiceColorOption[];
     /** Ambient motes, when the board's setting calls for them. */
     particles?: BoardParticles;
     diceSkin: DiceSkin;
@@ -144,9 +161,16 @@ export const BOARDS: BoardDefinition[] = [
         heldTray: DEFAULT_HELD_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
         unit: DEFAULT_BOARD_UNIT,
-        // Copper rather than the old '#3B2820' — that was the same brown as the felt,
-        // which made seat 1's dice effectively invisible on this board.
-        diceColors: ['#C2703D', '#F2E6D8', '#2A8CA1', '#7D9652'],
+        // Copper leads. Seat 1 used to be the same brown as the felt, which made its
+        // dice effectively invisible on this board.
+        diceColors: [
+            { name: 'Copper Spoon', hex: '#C2703D' },
+            { name: 'Cafe Crema', hex: '#E0C591' },
+            { name: 'Inlay Teal', hex: '#2A8CA1' },
+            { name: 'Rose Quartz', hex: '#D9779A' },
+            { name: 'White', hex: '#F4F4F4' },
+            { name: 'Ivy', hex: '#7D9652' },
+        ],
         diceSkin: DEFAULT_SKIN,
         theme: {
             text: '#F2E6D8',
@@ -162,6 +186,7 @@ export const BOARDS: BoardDefinition[] = [
             accentHover: '#23899c',
             buttonGradientFrom: '#3B2820',
             buttonGradientTo: '#5a3f33',
+            buttonText: '#F2E6D8',
             buttonBorder: 'rgba(125, 150, 82, 0.3)',
             buttonBorderHover: 'rgba(125, 150, 82, 0.5)',
             diceBorder: '#7D9652',
@@ -181,7 +206,14 @@ export const BOARDS: BoardDefinition[] = [
         heldTray: DEFAULT_HELD_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
         unit: DEFAULT_BOARD_UNIT,
-        diceColors: ['#E6AF2E', '#4ABFAC', '#C05746', '#2E4830'],
+        diceColors: [
+            { name: 'Emerald', hex: '#22B36B' },
+            { name: 'Toadstool', hex: '#E04A3F' },
+            { name: 'Wisp Blue', hex: '#3FB8F0' },
+            { name: 'Amethyst', hex: '#9B5DE5' },
+            { name: 'White', hex: '#F4F4F4' },
+            { name: 'Old Scroll', hex: '#E2CC8F' },
+        ],
         // The forest wisps the board description promises.
         particles: { color: '#4DEE9E', motion: 'rise', count: 55 },
         // Polished jade. It used to be translucent, which looked lovely in isolation and
@@ -205,6 +237,7 @@ export const BOARDS: BoardDefinition[] = [
             accentHover: '#3aa896',
             buttonGradientFrom: '#2E4830',
             buttonGradientTo: '#3a5a3d',
+            buttonText: '#E6AF2E',
             buttonBorder: 'rgba(74, 191, 172, 0.3)',
             buttonBorderHover: 'rgba(74, 191, 172, 0.5)',
             diceBorder: '#4ABFAC',
@@ -224,7 +257,14 @@ export const BOARDS: BoardDefinition[] = [
         heldTray: DEFAULT_HELD_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
         unit: DEFAULT_BOARD_UNIT,
-        diceColors: ['#1C1C1C', '#FF8C00', '#8A2323', '#4A5D6E'], // obsidian first: the classic look
+        diceColors: [
+            { name: 'Obsidian', hex: '#1C1C1C' },
+            { name: 'Magma', hex: '#FF5A14' },
+            { name: 'Blue Temper', hex: '#4A90E2' },
+            { name: 'Peridot', hex: '#2ECC71' },
+            { name: 'White', hex: '#F4F4F4' },
+            { name: 'Smoke', hex: '#C4BDB3' },
+        ], // obsidian first: the classic look
         // Embers coming off the magma.
         particles: { color: '#FF5500', motion: 'rise', count: 90 },
         // Rough volcanic stone, whatever colour the player picked.
@@ -247,6 +287,7 @@ export const BOARDS: BoardDefinition[] = [
             accentHover: '#e67d00',
             buttonGradientFrom: '#FF8C00',
             buttonGradientTo: '#cc7000',
+            buttonText: '#1C1C1C',
             buttonBorder: 'rgba(255, 140, 0, 0.3)',
             buttonBorderHover: 'rgba(255, 140, 0, 0.5)',
             diceBorder: '#8A2323',
@@ -266,7 +307,14 @@ export const BOARDS: BoardDefinition[] = [
         heldTray: DEFAULT_HELD_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
         unit: DEFAULT_BOARD_UNIT,
-        diceColors: ['#C01E32', '#2056A2', '#E68A00', '#1E8F4B'],
+        diceColors: [
+            { name: 'Stealie Red', hex: '#FF4757' },
+            { name: 'Stealie Blue', hex: '#3B8BFF' },
+            { name: 'Skull Bone', hex: '#DECBA4' },
+            { name: 'Cassette Black', hex: '#141414' },
+            { name: 'White', hex: '#F4F4F4' },
+            { name: 'Tie-Dye Violet', hex: '#A45CFF' },
+        ],
         diceSkin: DEFAULT_SKIN,
         theme: {
             text: '#FFFFFF',
@@ -282,6 +330,7 @@ export const BOARDS: BoardDefinition[] = [
             accentHover: '#a91a29',
             buttonGradientFrom: '#C01E32',
             buttonGradientTo: '#8B1623',
+            buttonText: '#FFFFFF',
             buttonBorder: 'rgba(192, 30, 50, 0.3)',
             buttonBorderHover: 'rgba(192, 30, 50, 0.5)',
             diceBorder: '#2056A2',
@@ -301,7 +350,14 @@ export const BOARDS: BoardDefinition[] = [
         heldTray: DEFAULT_HELD_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
         unit: DEFAULT_BOARD_UNIT,
-        diceColors: ['#C93F38', '#4A525A', '#6B8248', '#76B6C4'],
+        diceColors: [
+            { name: 'Maple Leaf', hex: '#A32220' },
+            { name: 'Tray Green', hex: '#1E5E2A' },
+            { name: 'Soap Bubble', hex: '#9FD3EA' },
+            { name: 'Black Coffee', hex: '#3B2418' },
+            { name: 'White', hex: '#F4F4F4' },
+            { name: 'Leaf Blush', hex: '#F2A0B4' },
+        ],
         diceSkin: DEFAULT_SKIN,
         theme: {
             text: '#F5E6D3',
@@ -317,6 +373,7 @@ export const BOARDS: BoardDefinition[] = [
             accentHover: '#b83730',
             buttonGradientFrom: '#5A3D2E',
             buttonGradientTo: '#7A5D4E',
+            buttonText: '#F5E6D3',
             buttonBorder: 'rgba(107, 130, 72, 0.3)',
             buttonBorderHover: 'rgba(107, 130, 72, 0.5)',
             diceBorder: '#6B8248',
@@ -336,7 +393,14 @@ export const BOARDS: BoardDefinition[] = [
         heldTray: DEFAULT_HELD_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
         unit: DEFAULT_BOARD_UNIT,
-        diceColors: ['#649C8F', '#D9B056', '#8C2B2B', '#273C52'],
+        diceColors: [
+            { name: 'Globe Ocean', hex: '#2B4C9B' },
+            { name: 'Oxblood', hex: '#A32626' },
+            { name: 'Verdigris', hex: '#278574' },
+            { name: 'Sepia Ink', hex: '#2B1B12' },
+            { name: 'White', hex: '#F4F4F4' },
+            { name: 'Sea Chart', hex: '#A9D6E5' },
+        ],
         diceSkin: DEFAULT_SKIN,
         theme: {
             text: '#D9B056',
@@ -352,6 +416,7 @@ export const BOARDS: BoardDefinition[] = [
             accentHover: '#c9a048',
             buttonGradientFrom: '#273C52',
             buttonGradientTo: '#3a5472',
+            buttonText: '#D9B056',
             buttonBorder: 'rgba(100, 156, 143, 0.3)',
             buttonBorderHover: 'rgba(100, 156, 143, 0.5)',
             diceBorder: '#649C8F',
@@ -371,7 +436,14 @@ export const BOARDS: BoardDefinition[] = [
         heldTray: DEFAULT_HELD_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
         unit: DEFAULT_BOARD_UNIT,
-        diceColors: ['#E8DCC2', '#D4AF37', '#1A4F8B', '#A81B1B'], // bone first: the classic look
+        diceColors: [
+            { name: 'Weathered Bone', hex: '#DCC9A0' },
+            { name: 'Jolly Roger', hex: '#1A1A1A' },
+            { name: 'Lagoon', hex: '#2FB5A8' },
+            { name: 'Starfish', hex: '#F2604F' },
+            { name: 'White', hex: '#F4F4F4' },
+            { name: 'Sapphire Gem', hex: '#1B2F8A' },
+        ], // bone first: the classic look
         // Sun-bleached and weathered, whatever colour the player picked.
         diceSkin: {
             roughness: 0.65,
@@ -392,6 +464,7 @@ export const BOARDS: BoardDefinition[] = [
             accentHover: '#c49f2e',
             buttonGradientFrom: '#1A4F8B',
             buttonGradientTo: '#2565b3',
+            buttonText: '#E8DCC2',
             buttonBorder: 'rgba(212, 175, 55, 0.3)',
             buttonBorderHover: 'rgba(212, 175, 55, 0.5)',
             diceBorder: '#D4AF37',
@@ -412,8 +485,16 @@ export const BOARDS: BoardDefinition[] = [
         rollPlate: DEFAULT_ROLL_PLATE,
         unit: DEFAULT_BOARD_UNIT,
         // Cyan leads: the indigo that used to be first is the same value as the nebula
-        // behind it, so seat 1's dice all but disappeared.
-        diceColors: ['#4DEEEA', '#FCA311', '#C77DF3', '#211A45'],
+        // behind it, so seat 1's dice all but disappeared. The rest are the nebula's own
+        // glows, which is why this is the only board with a magenta.
+        diceColors: [
+            { name: 'Cyan Crystal', hex: '#4DEEEA' },
+            { name: 'Amber Crystal', hex: '#FF7F1F' },
+            { name: 'Nebula Pink', hex: '#FF4FD8' },
+            { name: 'Nebula Violet', hex: '#C77DF3' },
+            { name: 'White', hex: '#F4F4F4' },
+            { name: 'Hull Silver', hex: '#B4BAC4' },
+        ],
         // Stardust, hanging rather than rising — there is no up out there.
         particles: { color: '#8C52FF', motion: 'drift', count: 70 },
         diceSkin: {
@@ -437,6 +518,7 @@ export const BOARDS: BoardDefinition[] = [
             accentHover: '#e8940f',
             buttonGradientFrom: '#C77DF3',
             buttonGradientTo: '#a660d3',
+            buttonText: '#211A45',
             buttonBorder: 'rgba(252, 163, 17, 0.3)',
             buttonBorderHover: 'rgba(252, 163, 17, 0.5)',
             diceBorder: '#C77DF3',
