@@ -210,7 +210,7 @@ export class CpuAgent {
 
         for (const cat of openCategories) {
             const score = potentialScores[cat];
-            const rating = this.rateCategoryCommit(cat, score, scorecard, personality);
+            const rating = CpuAgent.rateCategoryCommit(cat, score, scorecard, personality);
             if (rating > maxRating) {
                 maxRating = rating;
                 bestCategory = cat;
@@ -223,8 +223,9 @@ export class CpuAgent {
     /**
      * Evaluates the relative value of locking in a specific score for a category.
      * Accounts for scratching (scoring 0) by assigning lesser penalties to easy-to-scratch boxes.
+     * Static and public so the scorecard can rank a human's options the same way.
      */
-    private rateCategoryCommit(
+    public static rateCategoryCommit(
         category: ScoreCategory,
         score: number,
         scorecard: Scorecard,
@@ -256,7 +257,7 @@ export class CpuAgent {
         ].includes(category);
 
         if (isUpper) {
-            const val = this.getCategoryValue(category);
+            const val = CpuAgent.getCategoryValue(category);
             const count = score / val;
 
             if (count >= 3) {
@@ -333,7 +334,7 @@ export class CpuAgent {
         return rating;
     }
 
-    private getCategoryValue(cat: ScoreCategory): number {
+    private static getCategoryValue(cat: ScoreCategory): number {
         switch (cat) {
             case ScoreCategory.Ones: return 1;
             case ScoreCategory.Twos: return 2;

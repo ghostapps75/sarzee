@@ -174,8 +174,6 @@ export interface ViewportInfo {
     height: number;
     /** 'rail' = board and scorecard side by side. 'stack' = board above, scorecard below. */
     mode: LayoutMode;
-    /** Whether there is room for the illustrated paper scorecard rather than the table. */
-    fancyScorecard: boolean;
     /** Width reserved for the scorecard rail in 'rail' mode. */
     railWidth: number;
     /** Coarse "this is a phone" signal, used to trim 3D quality. */
@@ -206,9 +204,10 @@ export function useViewport(): ViewportInfo {
         const width = size?.w ?? 1280;
         const height = size?.h ?? 800;
         const mode: LayoutMode = width / height >= 1.2 ? 'rail' : 'stack';
-        const railWidth = mode === 'rail' ? Math.round(Math.min(380, Math.max(210, width * 0.26))) : 0;
-        const fancyScorecard = mode === 'rail' && width >= 900 && height >= 560;
+        // The board is height-bound in the rail layout, so past ~1300px wide the extra width
+        // is empty felt; give the scorecard a share of it so every player's column fits.
+        const railWidth = mode === 'rail' ? Math.round(Math.min(460, Math.max(220, width * 0.3))) : 0;
         const lowPower = Math.min(width, height) < 500;
-        return { width, height, mode, fancyScorecard, railWidth, lowPower, ready: !!size };
+        return { width, height, mode, railWidth, lowPower, ready: !!size };
     }, [size]);
 }

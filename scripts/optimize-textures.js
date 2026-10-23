@@ -18,7 +18,7 @@ const sharp = require('sharp');
 /**
  * Each entry is a folder to sweep and the widest the images in it ever need to be.
  * Board art is drawn at up to ~1300 CSS px (so 1920 covers a high-DPI display); the
- * button and scorecard art are much smaller on screen; the social thumbnail only ever
+ * button art is much smaller on screen; the social thumbnail only ever
  * appears in a link preview.
  */
 const TARGETS = [
@@ -27,9 +27,6 @@ const TARGETS = [
         dir: ['public', 'assets'],
         maxWidth: 1024,
         overrides: { 'thumbnail.png': 1200 },
-        // The scorecard is fine-line art with small printed text; palette quantisation
-        // makes the rules column mushy, so keep it lossless.
-        lossless: ['scorecard_bg.png'],
     },
 ];
 

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Patrick_Hand } from "next/font/google";
+import { Archivo_Narrow, Geist, Geist_Mono, Patrick_Hand } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -16,6 +16,14 @@ const patrickHand = Patrick_Hand({
   weight: "400",
   variable: "--font-patrick-hand",
   subsets: ["latin"],
+});
+
+// The scorecard's printed type: labels, rules and computed totals. Handwriting is kept
+// for what a player writes, so the arithmetic doesn't look pencilled in.
+const archivoNarrow = Archivo_Narrow({
+  variable: "--font-archivo-narrow",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
 });
 
 export const viewport: Viewport = {
@@ -55,7 +63,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${patrickHand.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${patrickHand.variable} ${archivoNarrow.variable} antialiased`}
         suppressHydrationWarning
       >
         {children}
