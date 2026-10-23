@@ -5,7 +5,6 @@ import type { DiceArenaHandle } from '@/components/DiceArena';
 import BoardStage from '@/components/BoardStage';
 import GameHud from '@/components/GameHud';
 import GameOverOverlay from '@/components/GameOverOverlay';
-import MultiPlayerScorecard from '@/components/MultiPlayerScorecard';
 import ScoreTable from '@/components/ScoreTable';
 import SarzeeCelebration from '@/components/SarzeeCelebration';
 import NancyCelebration from '@/components/NancyCelebration';
@@ -98,16 +97,28 @@ export default function Page() {
         try {
             const { htmlToImage, jsPDF } = await importExportTools();
             const dataUrl = await htmlToImage.toPng(node, {
-                quality: 0.95,
-                backgroundColor: '#f4f4f5',
+                // The card scrolls on short screens; capture all of it, not just what's in view.
+                // scrollHeight leaves out the card's borders, so add them back or the clone
+                // overflows by a few pixels and draws scrollbars into the image.
+                height: node.scrollHeight + node.offsetHeight - node.clientHeight,
+                style: { overflow: 'hidden' },
+                // Print resolution: the card is a few hundred CSS px wide but fills an A4 page.
+                pixelRatio: 3,
                 filter: (n: HTMLElement) =>
                     !n.className || typeof n.className !== 'string' || !n.className.includes('helper-exclude-pdf'),
             });
 
             const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
             const props = pdf.getImageProperties(dataUrl);
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, (props.height * pdfWidth) / props.width);
+            const pageW = pdf.internal.pageSize.getWidth();
+            const pageH = pdf.internal.pageSize.getHeight();
+            // The card is taller than A4 in proportion, so fit it to the page rather than
+            // to the page width — otherwise the totals run off the bottom.
+            const margin = 28;
+            const scale = Math.min((pageW - margin * 2) / props.width, (pageH - margin * 2) / props.height);
+            const w = props.width * scale;
+            const h = props.height * scale;
+            pdf.addImage(dataUrl, 'PNG', (pageW - w) / 2, (pageH - h) / 2, w, h);
             pdf.save(`${timestampedName('sarzee-scorecard')}.pdf`);
         } catch (e) {
             console.error('Export failed', e);
@@ -135,6 +146,8 @@ export default function Page() {
     if (!gameState || !viewport.ready) return <div className="fixed inset-0 bg-black" />;
 
     const stacked = viewport.mode === 'stack';
+    /** Width of the scorecard rail covering the right of the board, or 0 when stacked. */
+    const railInset = stacked ? 0 : viewport.railWidth;
     const compact = stacked || viewport.height < 560;
 
     // In stacked mode the board takes the top of the screen and the scorecard the rest.
@@ -145,7 +158,9 @@ export default function Page() {
         : viewport.height;
 
     const scorecardProps = {
+        ref: scorecardRef,
         playerNames: customNames,
+        playerColors: playerDiceColors,
         scorecards,
         yahtzeeBonuses,
         totals,
@@ -161,7 +176,7 @@ export default function Page() {
         <BoardStage
             board={board}
             fit={stacked ? 'contain-unit' : 'cover'}
-            inset={stacked ? undefined : { right: viewport.railWidth }}
+            inset={stacked ? undefined : { right: railInset }}
             arenaRef={arenaRef}
             heldDice={gameState.heldDice}
             onDieClick={game.toggleHold}
@@ -183,9 +198,10 @@ export default function Page() {
         >
             {cpu.isThinking && cpu.message && (
                 <div
-                    className={`absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none animate-in fade-in-0 duration-300 max-w-[92%] ${
+                    className={`absolute -translate-x-1/2 z-40 pointer-events-none animate-in fade-in-0 duration-300 max-w-[92%] ${
                         compact ? 'bottom-2' : 'top-[18%]'
                     }`}
+                    style={{ left: `calc((100% - ${railInset}px) / 2)` }}
                 >
                     <div className="backdrop-blur-md bg-black/75 border border-yellow-500/30 rounded-2xl px-4 py-2.5 shadow-2xl flex items-center gap-2.5">
                         <span className="flex gap-1 shrink-0">
@@ -203,12 +219,12 @@ export default function Page() {
             )}
 
             {showCelebration && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center">
+                <div className="absolute inset-y-0 left-0 z-50 flex items-center justify-center" style={{ right: railInset }}>
                     <SarzeeCelebration onDismiss={() => setShowCelebration(false)} />
                 </div>
             )}
             {showNancyCelebration && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center">
+                <div className="absolute inset-y-0 left-0 z-50 flex items-center justify-center" style={{ right: railInset }}>
                     <NancyCelebration onDismiss={() => setShowNancyCelebration(false)} />
                 </div>
             )}
@@ -223,9 +239,7 @@ export default function Page() {
                         {stage}
                     </div>
                     <div className="flex-1 min-h-0 p-1.5 pt-2" style={{ backgroundColor: board.theme.bg }}>
-                        <div ref={scorecardRef} className="h-full">
-                            <ScoreTable {...scorecardProps} className="h-full" />
-                        </div>
+                        <ScoreTable {...scorecardProps} className="h-full" />
                     </div>
                 </div>
             ) : (
@@ -235,13 +249,7 @@ export default function Page() {
                         className="absolute right-0 top-0 bottom-0 z-[60] flex flex-col p-2"
                         style={{ width: viewport.railWidth, backgroundColor: `${board.theme.bg}f0` }}
                     >
-                        <div ref={scorecardRef} className="flex-1 min-h-0 flex flex-col">
-                            {viewport.fancyScorecard ? (
-                                <MultiPlayerScorecard {...scorecardProps} className="flex-1 min-h-0" />
-                            ) : (
-                                <ScoreTable {...scorecardProps} className="flex-1 min-h-0" />
-                            )}
-                        </div>
+                        <ScoreTable {...scorecardProps} className="flex-1 min-h-0" />
                     </aside>
                 </>
             )}
@@ -252,7 +260,7 @@ export default function Page() {
                 playerColor={playerDiceColors[activePlayer] || '#FFFFFF'}
                 rollsLeft={gameState.rollsLeft}
                 compact={compact}
-                rightInset={stacked ? 0 : viewport.railWidth}
+                rightInset={railInset}
                 onShowRules={() => setShowRules(true)}
                 onShowStats={() => setShowStats(true)}
                 onLeave={game.resetAll}
@@ -273,8 +281,7 @@ export default function Page() {
 
             {isDev && (
                 <div className="absolute bottom-1 left-1 z-[999] font-mono text-[9px] text-white/40 pointer-events-none">
-                    {viewport.width}×{viewport.height} · {viewport.mode}
-                    {viewport.fancyScorecard ? ' · paper' : ' · table'} · L=rects V=values C=celebrate
+                    {viewport.width}×{viewport.height} · {viewport.mode} · L=rects V=values C=celebrate
                 </div>
             )}
         </div>

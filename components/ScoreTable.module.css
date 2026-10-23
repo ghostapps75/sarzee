@@ -1,0 +1,517 @@
+/*
+ * components/ScoreTable.module.css
+ *
+ * The score pad: cream stock, ruled ink lines, pencilled numbers. Everything here is CSS
+ * or inline SVG, so it stays crisp at any size and pixel ratio — the old illustrated card
+ * was a raster image being upscaled, which is what made its printing blurry.
+ *
+ * Type is sized from --u, the height of one scoring line, which ScoreTable measures and
+ * sets. That keeps the pad in proportion as it grows on a big screen or shrinks on a small one.
+ */
+
+.pad {
+    --u: 40px;
+    --line-min: 26px;
+
+    --paper: #f7f0dc;
+    --paper-deep: #e9dcbd;
+    --binding: #8f2a20;
+    --ink: #2a211b;
+    --ink-soft: rgba(42, 33, 27, 0.78);
+    --ink-muted: rgba(42, 33, 27, 0.5);
+    --rule: rgba(74, 55, 38, 0.34);
+    --rule-strong: rgba(42, 33, 27, 0.7);
+    --graphite: #33343d;
+    --pencil: #1b4597;
+    --band-tint: rgba(150, 110, 45, 0.075);
+    --sum-tint: rgba(105, 80, 48, 0.11);
+    --active-wash: rgba(238, 176, 20, 0.11);
+    --row-hover: rgba(255, 220, 75, 0.5);
+    --glow: 240, 150, 10;
+
+    /* One ruled line, drawn with a faint wobble so it reads as inked by hand. */
+    --rule-line: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='3'%3E%3Cpath d='M0 1.5C27 1.05 53 1.95 80 1.5S133 1.1 160 1.5' fill='none' stroke='%234a3726' stroke-opacity='.42' stroke-width='1'/%3E%3C/svg%3E");
+
+    background-color: var(--paper);
+    /* Paper grain. Base64 so html-to-image (the PDF export) can't mistake the filter's
+       inner url(#n) for a resource to fetch, which breaks the filter and paints it black. */
+    background-image:
+        url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScyMDAnIGhlaWdodD0nMjAwJz48ZmlsdGVyIGlkPSduJz48ZmVUdXJidWxlbmNlIHR5cGU9J2ZyYWN0YWxOb2lzZScgYmFzZUZyZXF1ZW5jeT0nLjknIG51bU9jdGF2ZXM9JzInIHN0aXRjaFRpbGVzPSdzdGl0Y2gnLz48ZmVDb2xvck1hdHJpeCB2YWx1ZXM9JzAgMCAwIDAgLjQyIDAgMCAwIDAgLjMyIDAgMCAwIDAgLjE4IDAgMCAwIC4xIDAnLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0nMjAwJyBoZWlnaHQ9JzIwMCcgZmlsbD0nbm9uZScgZmlsdGVyPSd1cmwoI24pJy8+PC9zdmc+"),
+        radial-gradient(130% 95% at 50% 35%, transparent 62%, rgba(140, 100, 40, 0.13) 100%);
+    /* The gummed edge of a tear-off pad. */
+    border-top: 5px solid var(--binding);
+    color: var(--ink);
+    font-family: var(--font-archivo-narrow), 'Arial Narrow', sans-serif;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+/* Fingers need taller boxes than a mouse does. */
+@media (pointer: coarse) {
+    .pad {
+        --line-min: 36px;
+    }
+}
+
+.grid {
+    display: grid;
+    width: 100%;
+}
+
+/* display: contents puts a row's cells straight into the grid while still letting
+   the row be styled — banded, or lit on hover — as one line. */
+.row {
+    display: contents;
+}
+
+.cell {
+    min-width: 0;
+    background-color: var(--band, transparent);
+    background-image: linear-gradient(var(--wash, transparent), var(--wash, transparent)), var(--rule-line);
+    background-repeat: no-repeat, repeat-x;
+    background-size: 100% 100%, 160px 3px;
+    background-position: 0 0, left bottom;
+    transition: background-color 120ms ease;
+}
+
+.col {
+    border-left: 1px solid var(--rule);
+}
+
+/* The double rule between the printed labels and the players' columns. */
+.first {
+    border-left: 3px double var(--rule-strong);
+}
+
+.active {
+    --wash: var(--active-wash);
+}
+
+.row[data-band] > * {
+    --band: var(--band-tint);
+}
+
+/* Point at a box you can score and the whole line lights up, label included. */
+.row[data-scorable] > .label {
+    cursor: pointer;
+}
+
+.row[data-scorable]:has(> .label:hover, > [data-live]:hover, > [data-live]:focus-visible) > * {
+    --band: var(--row-hover);
+}
+
+/* ---- Header ---------------------------------------------------------------- */
+
+.head {
+    position: sticky;
+    top: var(--head-top, 0px);
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    background-color: var(--paper);
+    background-image: linear-gradient(var(--wash, transparent), var(--wash, transparent));
+    border-bottom: 3px double var(--rule-strong);
+}
+
+.corner {
+    padding: 0 10px;
+}
+
+.logo {
+    font-size: clamp(20px, calc(var(--u) * 0.7), 36px);
+    font-style: italic;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    line-height: 1;
+    color: var(--ink);
+}
+
+.player {
+    container-type: inline-size;
+    justify-content: center;
+    gap: 0.3em;
+    padding: 0 3px;
+    font-size: clamp(15px, calc(var(--u) * 0.46), 23px);
+}
+
+/* The player's dice colour, so a column reads as theirs at a glance. */
+.chip {
+    flex-shrink: 0;
+    width: 0.6em;
+    height: 0.6em;
+    border-radius: 2px;
+    border: 1px solid var(--rule-strong);
+}
+
+/* A narrow column needs every pixel for the name: tuck the chip into the corner. */
+@container (max-width: 95px) {
+    .chip {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        width: 7px;
+        height: 7px;
+    }
+}
+
+.name {
+    min-width: 0;
+    padding: 0 0.2em;
+    /* "Player 1" sets at about 3.3em with its padding; never let it outgrow the column. */
+    font-size: min(1em, 29cqi);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-patrick-hand), cursive;
+    line-height: 1.15;
+    color: var(--graphite);
+}
+
+/* Whose turn it is: a highlighter run across their name. */
+.active .name {
+    color: var(--ink);
+    background: linear-gradient(
+        100deg,
+        transparent 0.1em,
+        rgba(255, 204, 40, 0.8) 0.3em,
+        rgba(255, 204, 40, 0.8) calc(100% - 0.3em),
+        transparent calc(100% - 0.1em)
+    );
+}
+
+/* ---- Section bands ---------------------------------------------------------- */
+
+.band {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    background-color: var(--ink);
+    color: var(--paper);
+    font-size: clamp(9.5px, calc(var(--u) * 0.25), 12.5px);
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+}
+
+/* ---- Printed labels ---------------------------------------------------------- */
+
+.label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 0.4em;
+    padding: 0 8px 0 10px;
+    font-size: clamp(12.5px, calc(var(--u) * 0.36), 18px);
+    line-height: 1.05;
+}
+
+.labelText {
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.pip {
+    flex-shrink: 0;
+    width: 1.1em;
+    height: 1.1em;
+    color: var(--ink);
+}
+
+/* The scoring rule, printed small: "Full House · 25". */
+.hint {
+    font-size: 0.7em;
+    font-weight: 500;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--ink-muted);
+}
+
+.lineLabel {
+    container-type: inline-size;
+}
+
+/* In a narrow label column some hints would wrap and some wouldn't; put them all
+   on their own line so the stacking reads as deliberate. The widest line,
+   "4 of a Kind · Sum", sets at about 6.5em, and em here is the label's own size. */
+@container (max-width: 6.7em) {
+    .lineLabel > .hint {
+        flex-basis: 100%;
+    }
+}
+
+/* ---- Pencilled boxes ---------------------------------------------------------- */
+
+.score {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-patrick-hand), cursive;
+    font-size: clamp(16px, calc(var(--u) * 0.54), 28px);
+    line-height: 1;
+    color: var(--graphite);
+}
+
+.score[data-live] {
+    cursor: pointer;
+}
+
+.score:focus-visible {
+    outline: 2px solid var(--pencil);
+    outline-offset: -3px;
+}
+
+/* A pencilled number never sits perfectly square in its box. */
+.ink {
+    position: relative;
+    display: inline-block;
+    transform: translateX(var(--nudge, 0px)) rotate(var(--tilt, 0deg));
+}
+
+.score[data-zero] .ink {
+    opacity: 0.45;
+}
+
+/*
+ * What the dice on the table would score, ranked. The best box glows, strong
+ * alternatives glow softly, weak ones are plain and scratches fade back.
+ */
+.score[data-tier] .ink {
+    color: var(--pencil);
+}
+
+.score[data-tier='fair'] .ink {
+    opacity: 0.8;
+}
+
+.score[data-tier='scratch'] .ink {
+    opacity: 0.3;
+    font-size: 0.8em;
+}
+
+.score[data-tier='best'] .ink {
+    font-size: 1.15em;
+    color: #12357a;
+    text-shadow: 0 0 10px rgba(var(--glow), 0.55);
+}
+
+.score[data-tier='best'],
+.score[data-tier='good'] {
+    z-index: 1;
+}
+
+.score[data-tier='best']::before,
+.score[data-tier='good']::before,
+.score[data-writing]::before {
+    content: '';
+    position: absolute;
+    inset: 3px 5px;
+    border-radius: 10px;
+    pointer-events: none;
+}
+
+.score[data-tier='best']::before {
+    background: radial-gradient(closest-side, rgba(255, 243, 185, 0.95), rgba(255, 214, 105, 0.45));
+    box-shadow:
+        0 0 0 2px rgba(var(--glow), 0.95),
+        0 0 18px 6px rgba(var(--glow), 0.6),
+        0 0 38px 12px rgba(var(--glow), 0.25),
+        inset 0 0 12px rgba(var(--glow), 0.4);
+    animation: halo 1.6s ease-in-out infinite;
+}
+
+.score[data-tier='good']::before {
+    background: rgba(255, 236, 170, 0.4);
+    box-shadow:
+        0 0 0 1px rgba(var(--glow), 0.6),
+        0 0 11px 3px rgba(var(--glow), 0.35);
+    animation: breathe 2.8s ease-in-out infinite;
+}
+
+/* Out of rolls: the choice is now, so the best box calls a little louder. */
+.pad[data-must-pick] .score[data-tier='best']::before {
+    animation-duration: 1s;
+}
+
+/* A CPU player about to write in this box. */
+.score[data-writing]::before {
+    inset: 4px 3px;
+    border-radius: 3px;
+    background: rgba(255, 214, 40, 0.7);
+    animation: breathe 0.9s ease-in-out infinite;
+}
+
+@keyframes halo {
+    0%,
+    100% {
+        opacity: 0.6;
+        transform: scale(0.94);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.05);
+    }
+}
+
+@keyframes breathe {
+    0%,
+    100% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .score::before {
+        animation: none !important;
+        opacity: 0.9;
+    }
+}
+
+/* ---- Printed totals ------------------------------------------------------------ */
+
+.sumRow > * {
+    --band: var(--sum-tint);
+}
+
+.sumLabel {
+    font-size: clamp(10px, calc(var(--u) * 0.27), 13.5px);
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+}
+
+.sumLabel .hint {
+    font-size: 0.85em;
+    letter-spacing: 0.04em;
+}
+
+.sum {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(13px, calc(var(--u) * 0.4), 20px);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.sum[data-zero] {
+    font-weight: 500;
+    color: var(--ink-muted);
+}
+
+.strong > * {
+    border-top: 1px solid var(--rule-strong);
+}
+
+.strong .sumLabel {
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.strong .sum {
+    font-weight: 700;
+}
+
+.grand {
+    display: flex;
+    align-items: center;
+    background-color: var(--ink);
+    background-image: none;
+    color: var(--paper);
+}
+
+.grandLabel {
+    padding: 0 10px;
+    font-size: clamp(11px, calc(var(--u) * 0.3), 14.5px);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.grandValue {
+    justify-content: center;
+    font-size: clamp(17px, calc(var(--u) * 0.58), 29px);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.grand.col {
+    border-left-color: rgba(247, 240, 220, 0.22);
+}
+
+.grand.first {
+    border-left: 3px double rgba(247, 240, 220, 0.45);
+}
+
+.grand.active {
+    background-color: #f2b632;
+    color: var(--ink);
+}
+
+/* ---- Player tabs: only when every column can't fit ---------------------------- */
+
+.tabs {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    display: flex;
+    background-color: var(--paper-deep);
+    border-bottom: 1px solid var(--rule-strong);
+}
+
+/* Name over running total, so even a four-way split keeps the whole name. */
+.tab {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    border-left: 1px solid var(--rule);
+    line-height: 1.05;
+    color: var(--ink-muted);
+    cursor: pointer;
+}
+
+.tab:first-child {
+    border-left: none;
+}
+
+.tab[aria-selected='true'] {
+    background-color: var(--paper);
+    color: var(--ink);
+    box-shadow: inset 0 -3px 0 var(--binding);
+}
+
+.tabName {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-patrick-hand), cursive;
+    font-size: 15px;
+}
+
+.tabTotal {
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.turnDot {
+    display: inline-block;
+    vertical-align: 0.1em;
+    margin-right: 3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: rgb(var(--glow));
+    box-shadow: 0 0 6px rgba(var(--glow), 0.8);
+}

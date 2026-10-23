@@ -15,6 +15,7 @@ npm run build    # static export to out/
 lib/
   SarzeeEngine.ts      Rules and scoring. Knows nothing about rendering.
   CpuAgent.ts          Hold/score decisions for the three CPU personalities.
+  scoreAdvice.ts       Ranks a roll's open boxes, which the scorecard makes glow.
   boards.ts            Every board: artwork, geometry, palette, dice finish.
   useBoardLayout.ts    Projects board-image coordinates into screen pixels.
   useSarzeeGame.ts     Game state and the actions that change it.
@@ -26,8 +27,7 @@ lib/
 components/
   BoardStage.tsx       Paints the board and positions everything on it.
   DiceArena.tsx        The 3D felt: owns the roll, renders the dice.
-  MultiPlayerScorecard Illustrated paper scorecard (wide screens).
-  ScoreTable.tsx       DOM scorecard (narrow screens).
+  ScoreTable.tsx       The scorecard: a paper score pad in real DOM, every size.
 ```
 
 ### Layout: board coordinates, not viewport percentages
