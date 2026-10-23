@@ -174,6 +174,26 @@ export default function ScoreTable({
         [canSelectCategory, activeCard, potentialScores]
     );
 
+    // On a short screen the best box can be below the fold. After each roll, bring it into
+    // view if it isn't already; wherever the whole card fits this does nothing.
+    useEffect(() => {
+        const root = rootRef.current;
+        if (!root || root.scrollHeight <= root.clientHeight) return;
+        const best = root.querySelector<HTMLElement>('[data-tier="best"]');
+        if (!best) return;
+
+        // The header row (and tabs) stay pinned over the top of the scrolled content.
+        const pinned = (root.querySelector<HTMLElement>(`.${styles.head}`)?.offsetHeight ?? 0) + (tabbed ? TABS_HEIGHT : 0);
+        const top = best.getBoundingClientRect().top - root.getBoundingClientRect().top - root.clientTop + root.scrollTop;
+        const height = best.offsetHeight;
+        if (top >= root.scrollTop + pinned && top + height <= root.scrollTop + root.clientHeight) return;
+
+        root.scrollTo({
+            top: Math.max(0, top - pinned - (root.clientHeight - pinned - height) / 2),
+            behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        });
+    }, [tiers, tabbed]);
+
     const nameOf = (p: number) => playerNames[p] || `Player ${p + 1}`;
 
     const scoreBox = (p: number, k: number, { cat, label }: Line) => {
