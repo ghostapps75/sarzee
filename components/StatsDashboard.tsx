@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BoardTheme } from '@/lib/boards';
-import { MatchLog, clearMatchLogs, readMatchLogs, winnerRecord } from '@/lib/matchLog';
-
-export type { MatchLog, PlayerScoreRecord } from '@/lib/matchLog';
+import { MatchLog, clearMatchLogs, isDrawLog, readMatchLogs, winnerRecord } from '@/lib/matchLog';
 
 interface StatsDashboardProps {
   isOpen: boolean;
@@ -40,18 +38,24 @@ export default function StatsDashboard({ isOpen, onClose, theme: themeColors }: 
       totalSarzees += log.sarzeeCount || 0;
       totalNancys += log.nancyCount || 0;
 
-      log.players.forEach((p) => {
+      const players = Array.isArray(log.players) ? log.players : [];
+      players.forEach((p) => {
         if (p.score > highestScore) {
           highestScore = p.score;
           highestScorer = p.name;
         }
       });
 
-      // Only count games that actually had a human in them towards the win rate.
-      if (log.players.some((p) => !p.isCpu)) {
+      // "Win rate (vs AI)" means a human beating the computer, so only games with both a
+      // human and a CPU seat count. Solo and all-human games used to be counted too, and
+      // a human always "wins" those, which inflated the figure. A draw is a game played
+      // but not a game won.
+      const hasHuman = players.some((p) => !p.isCpu);
+      const hasCpu = players.some((p) => p.isCpu);
+      if (hasHuman && hasCpu) {
         humanGames++;
         // Look the winner up by index: two players can share a name.
-        if (winnerRecord(log)?.isCpu === false) humanWins++;
+        if (!isDrawLog(log) && winnerRecord(log)?.isCpu === false) humanWins++;
       }
     });
 
@@ -277,23 +281,29 @@ export default function StatsDashboard({ isOpen, onClose, theme: themeColors }: 
               <p className="text-xs text-gray-500 italic text-center py-4">No logged history.</p>
             ) : (
               <div className="space-y-2 max-h-[220px] overflow-y-auto scrollbar-thin pr-1">
-                {matchLogs.slice().reverse().map((log) => (
-                  <div
-                    key={log.id}
-                    className="p-3 rounded-lg border border-white/5 bg-white/1 flex justify-between items-center text-xs"
-                  >
-                    <div>
-                      <div className="font-bold text-white">{log.winner.name} Won</div>
-                      <div className="text-[10px] text-gray-500 mt-0.5">{log.date} • {log.boardName}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-extrabold text-[#4ABFAC]">{log.winner.score} pts</div>
-                      <div className="text-[9px] text-gray-400">
-                        {log.players.length} Players ({log.sarzeeCount} S / {log.nancyCount} N)
+                {matchLogs.slice().reverse().map((log) => {
+                  const winner = winnerRecord(log);
+                  const draw = isDrawLog(log);
+                  return (
+                    <div
+                      key={log.id}
+                      className="p-3 rounded-lg border border-white/5 bg-white/1 flex justify-between items-center text-xs"
+                    >
+                      <div>
+                        <div className="font-bold text-white">
+                          {draw ? 'Draw' : `${winner?.name ?? log.winner?.name ?? 'Unknown'} Won`}
+                        </div>
+                        <div className="text-[10px] text-gray-500 mt-0.5">{log.date} • {log.boardName}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-extrabold text-[#4ABFAC]">{winner?.score ?? log.winner?.score ?? 0} pts</div>
+                        <div className="text-[9px] text-gray-400">
+                          {log.players?.length ?? 0} Players ({log.sarzeeCount} S / {log.nancyCount} N)
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

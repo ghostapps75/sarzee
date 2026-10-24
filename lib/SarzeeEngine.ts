@@ -1,5 +1,18 @@
 import { DieValue, GameState, ScoreCategory, Scorecard } from './types';
 
+const UPPER_CATEGORIES = [
+    ScoreCategory.Ones,
+    ScoreCategory.Twos,
+    ScoreCategory.Threes,
+    ScoreCategory.Fours,
+    ScoreCategory.Fives,
+    ScoreCategory.Sixes,
+];
+
+/** The upper section pays a bonus once its six boxes reach this: three of each number. */
+const UPPER_BONUS_THRESHOLD = 63;
+const UPPER_BONUS = 35;
+
 export class SarzeeEngine {
     private state: GameState;
 
@@ -21,6 +34,7 @@ export class SarzeeEngine {
             scorecard: emptyScorecard,
             isGameOver: false,
             totalScore: 0,
+            upperBonus: 0,
             yahtzeeBonus: 0,
         };
     }
@@ -161,6 +175,18 @@ export class SarzeeEngine {
         this.state.scorecard[category] = score;
         this.state.totalScore += score;
 
+        // The upper bonus is awarded once, at the moment the upper boxes reach 63. The
+        // scorecard shows this value rather than working it out again, so the card and
+        // the standings can never disagree about it.
+        if (
+            UPPER_CATEGORIES.includes(category) &&
+            this.state.upperBonus === 0 &&
+            this.upperSum() >= UPPER_BONUS_THRESHOLD
+        ) {
+            this.state.upperBonus = UPPER_BONUS;
+            this.state.totalScore += UPPER_BONUS;
+        }
+
         // If this is a bonus Yahtzee, add 100 bonus points
         // Note: You must score the bonus Yahtzee somewhere (even if 0) to get the bonus
         if (isBonusYahtzee) {
@@ -181,16 +207,12 @@ export class SarzeeEngine {
         if (!this.isYahtzee(dice)) return false;
         if (this.state.scorecard[ScoreCategory.Yahtzee] === null) return false;
 
-        const upperCats = [
-            ScoreCategory.Ones,
-            ScoreCategory.Twos,
-            ScoreCategory.Threes,
-            ScoreCategory.Fours,
-            ScoreCategory.Fives,
-            ScoreCategory.Sixes,
-        ];
-        const matchingUpper = upperCats[dice[0] - 1];
+        const matchingUpper = UPPER_CATEGORIES[dice[0] - 1];
         return this.state.scorecard[matchingUpper] !== null;
+    }
+
+    private upperSum(): number {
+        return UPPER_CATEGORIES.reduce((sum, cat) => sum + (this.state.scorecard[cat] ?? 0), 0);
     }
 
     private isYahtzee(dice: DieValue[]): boolean {
@@ -214,80 +236,8 @@ export class SarzeeEngine {
         }
     }
 
-    // Debug/Cheat methods could go here
+    /** Test hook: sets the dice without spending a roll. */
     public _forceDice(dice: DieValue[]) {
         this.state.diceValues = dice;
-    }
-
-    public debugSetNearEndgame(targetScore?: number) {
-        // Populate scorecard with realistic random scores, leaving 1-2 categories empty
-        const categories = Object.values(ScoreCategory);
-        const scores = [...categories].sort(() => Math.random() - 0.5); // Shuffle
-        const toFill = scores.slice(0, Math.max(11, scores.length - 2)); // Fill all but 1-2
-        
-        // Reset scorecard and total
-        const emptyScorecard: Scorecard = Object.values(ScoreCategory).reduce((acc, category) => {
-            acc[category] = null;
-            return acc;
-        }, {} as Scorecard);
-        this.state.scorecard = emptyScorecard;
-        
-        let newTotal = 0;
-        for (const cat of toFill) {
-            let score: number;
-            switch (cat) {
-                case ScoreCategory.Ones:
-                case ScoreCategory.Twos:
-                case ScoreCategory.Threes:
-                case ScoreCategory.Fours:
-                case ScoreCategory.Fives:
-                case ScoreCategory.Sixes:
-                    // Upper section: random 0-5 of that number
-                    const num = parseInt(cat.replace(/\D/g, ''));
-                    const count = Math.floor(Math.random() * 4); // 0-3
-                    score = count * num;
-                    break;
-                case ScoreCategory.ThreeOfAKind:
-                case ScoreCategory.FourOfAKind:
-                    // Random sum (15-30 typical)
-                    score = Math.floor(Math.random() * 16) + 15;
-                    break;
-                case ScoreCategory.FullHouse:
-                    score = Math.random() > 0.3 ? 25 : 0; // 70% chance
-                    break;
-                case ScoreCategory.SmallStraight:
-                    score = Math.random() > 0.2 ? 30 : 0; // 80% chance
-                    break;
-                case ScoreCategory.LargeStraight:
-                    score = Math.random() > 0.4 ? 40 : 0; // 60% chance
-                    break;
-                case ScoreCategory.Yahtzee:
-                    score = Math.random() > 0.7 ? 50 : 0; // 30% chance
-                    break;
-                case ScoreCategory.Chance:
-                    // Random sum (10-30 typical)
-                    score = Math.floor(Math.random() * 21) + 10;
-                    break;
-                default:
-                    score = 0;
-            }
-            
-            this.state.scorecard[cat] = score;
-            newTotal += score;
-        }
-        
-        // If targetScore provided, adjust total by tweaking last filled category
-        if (targetScore !== undefined && toFill.length > 0) {
-            const lastCat = toFill[toFill.length - 1];
-            const currentCatScore = this.state.scorecard[lastCat] ?? 0;
-            const adjustment = targetScore - newTotal;
-            this.state.scorecard[lastCat] = Math.max(0, currentCatScore + adjustment);
-            newTotal = targetScore;
-        }
-        
-        this.state.totalScore = newTotal;
-        this.state.currentTurn = 12; // Near the end
-        this.state.rollsLeft = Math.floor(Math.random() * 2) + 1; // 1 or 2 rolls left
-        this.state.isGameOver = false; // Not quite over yet
     }
 }

@@ -17,6 +17,11 @@ export interface MatchLog {
     /** Index into `players`. Stored by index because two players can share a name. */
     winnerIndex: number;
     winner: { name: string; score: number };
+    /**
+     * True when the top score was shared. `winnerIndex` then only says which of the tied
+     * seats came first, and nobody won. Absent on logs written before draws were recorded.
+     */
+    isDraw?: boolean;
     sarzeeCount: number;
     nancyCount: number;
 }
@@ -52,10 +57,9 @@ export function appendMatchLog(input: {
             isCpu: input.types[idx] !== 'HUMAN',
         }));
 
-        let winnerIndex = 0;
-        players.forEach((p, i) => {
-            if (p.score > players[winnerIndex].score) winnerIndex = i;
-        });
+        const top = Math.max(...players.map((p) => p.score));
+        const winnerIndex = Math.max(0, players.findIndex((p) => p.score === top));
+        const isDraw = players.filter((p) => p.score === top).length > 1;
 
         const log: MatchLog = {
             id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
@@ -64,6 +68,7 @@ export function appendMatchLog(input: {
             players,
             winnerIndex,
             winner: { name: players[winnerIndex].name, score: players[winnerIndex].score },
+            isDraw,
             sarzeeCount: input.sarzeeCount,
             nancyCount: input.nancyCount,
         };
@@ -88,8 +93,18 @@ export function clearMatchLogs() {
 
 /** Winner lookup that tolerates older logs written before `winnerIndex` existed. */
 export function winnerRecord(log: MatchLog): PlayerScoreRecord | undefined {
-    if (typeof log.winnerIndex === 'number' && log.players[log.winnerIndex]) {
-        return log.players[log.winnerIndex];
+    const players = Array.isArray(log.players) ? log.players : [];
+    if (typeof log.winnerIndex === 'number' && players[log.winnerIndex]) {
+        return players[log.winnerIndex];
     }
-    return log.players.find((p) => p.name === log.winner?.name);
+    return players.find((p) => p.name === log.winner?.name);
+}
+
+/** Draw detection that tolerates older logs, which recorded a tie as a win for the lower seat. */
+export function isDrawLog(log: MatchLog): boolean {
+    if (typeof log.isDraw === 'boolean') return log.isDraw;
+    const players = Array.isArray(log.players) ? log.players : [];
+    if (players.length < 2) return false;
+    const top = Math.max(...players.map((p) => p.score));
+    return players.filter((p) => p.score === top).length > 1;
 }

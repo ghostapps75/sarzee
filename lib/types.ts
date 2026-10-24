@@ -30,19 +30,14 @@ export interface GameState {
     /** Running total including bonuses (upper bonus + Yahtzee bonus). */
     totalScore: number;
 
+    /** 35 once the six upper boxes sum to 63 or more, otherwise 0. */
+    upperBonus: number;
+
     /**
      * Yahtzee bonus points (standard rules: +100 for each additional Yahtzee
      * after the Yahtzee box has been scored as 50).
      */
     yahtzeeBonus: number;
-}
-
-export interface Die {
-    id: number;
-    value: DieValue;
-    isRolling: boolean;
-    position: [number, number, number];
-    rotation: [number, number, number];
 }
 
 export type GamePhase = 'SETUP' | 'PLAYING' | 'GAME_OVER';

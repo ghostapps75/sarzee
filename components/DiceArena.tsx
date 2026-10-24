@@ -19,14 +19,10 @@ import { DIE_HALF, DIE_SIZE, HELD_SCALE, nearestCubeRotation, relabelQuaternion 
 import { PLAYBACK_FPS, SimResult, simulateRoll } from '@/lib/diceSimulation';
 
 export interface DiceArenaHandle {
-    roll: () => void;
+    /** Plays a physics roll that ends on exactly these values. */
     rollToResult: (values: number[], opts?: { chaosMs?: number }) => void;
+    /** Lines the dice up at rest for a fresh turn. */
     reset: () => void;
-    forceResult: (values: number[]) => void;
-
-    getVisualValues: () => number[];
-    getLastEmittedValues: () => number[];
-    getRollSeq: () => number;
     triggerCelebrationShake: (intensity?: number) => void;
 }
 
@@ -58,8 +54,6 @@ interface DiceArenaProps {
     values?: number[];
 }
 
-export { DIE_SIZE } from '@/lib/dieFaces';
-
 /** Height of a die's centre when it is resting on the felt. */
 const REST_Y = DIE_HALF;
 
@@ -83,6 +77,9 @@ const CAMERA_Y = REST_Y + CAMERA_DISTANCE;
 
 /** Keeps a die fully on the felt rather than half over the wooden edge. */
 const EDGE_MARGIN = DIE_HALF * 1.25;
+
+/** Contact shadow strength, unless the board asks for more (see DiceSkin.shadowOpacity). */
+const DEFAULT_SHADOW_OPACITY = 0.3;
 
 /**
  * How far the key light is tilted from vertical, as horizontal distance over height.
@@ -234,6 +231,7 @@ function DiceLayer({
     const tmpA = useMemo(() => new THREE.Vector3(), []);
     const tmpB = useMemo(() => new THREE.Vector3(), []);
     const tmpQ = useMemo(() => new THREE.Quaternion(), []);
+    const shadowOpacity = getBoard(boardId).diceSkin.shadowOpacity ?? DEFAULT_SHADOW_OPACITY;
 
     // The camera never moves. It used to be shaken on impact and for celebrations, but the
     // board is a static image behind this canvas, so a camera shake moved the dice against
@@ -354,7 +352,7 @@ function DiceLayer({
         <>
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow raycast={() => null}>
                 <planeGeometry args={[arenaWidth, arenaHeight]} />
-                <shadowMaterial transparent opacity={0.3} />
+                <shadowMaterial transparent opacity={shadowOpacity} />
             </mesh>
 
             {state.positions.map((_, i) => (
@@ -670,7 +668,6 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
             };
 
             return {
-                roll: () => rollToResult([0, 0, 0, 0, 0].map(() => 1 + Math.floor(Math.random() * 6))),
                 rollToResult,
                 reset: () => {
                     s.playback = null;
@@ -686,15 +683,6 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
                     }
                     s.lastEmitted = [1, 1, 1, 1, 1];
                 },
-                forceResult: (values: number[]) => {
-                    s.rollSeq += 1;
-                    s.playback = null;
-                    for (let i = 0; i < 5; i++) setFace(i, clampDie(values[i] ?? 1));
-                    emit(values);
-                },
-                getVisualValues: () => s.lastEmitted.slice(),
-                getLastEmittedValues: () => s.lastEmitted.slice(),
-                getRollSeq: () => s.rollSeq,
                 triggerCelebrationShake: (intensity = 1.2) => {
                     onCelebrationShake?.(intensity);
                 },

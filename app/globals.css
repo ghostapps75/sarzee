@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* The entrance animations (animate-in, fade-in-*, zoom-in-*, slide-in-from-*) used by
+   the setup panel, celebrations and game-over card. Tailwind v4 has none of its own. */
+@import "tw-animate-css";
 
 :root {
   --background: #0a0a0a;

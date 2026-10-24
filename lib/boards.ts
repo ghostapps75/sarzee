@@ -12,9 +12,10 @@
 // pixels through the same transform it uses to draw the image, so the felt is always
 // exactly on the felt no matter what shape the screen is.
 //
-// The values below were measured off board_texture.jpg and verified against all
-// eight boards — they share a common template, so one set fits them all. A board
-// with different framing can override `felt` / `rollPlate` / `unit` individually.
+// The values below were measured from luminance profiles across the recess edges of
+// board_texture.jpg and linguiniii_board.jpg, then checked against every board under the
+// L overlay — they share a common template, so one set fits them all. A board with
+// different framing (the Map Room sits lower) overrides the rects that drifted.
 
 export interface FracRect {
     x: number;
@@ -23,8 +24,18 @@ export interface FracRect {
     h: number;
 }
 
-/** The playing surface the dice roll on. */
-export const DEFAULT_FELT: FracRect = { x: 0.3365, y: 0.2185, w: 0.3465, h: 0.5288 };
+/**
+ * The template's vertical centre line. The artwork is centred a hair left of the image
+ * centre, so the felt and the two trays are placed about this rather than about 0.5.
+ */
+const TEMPLATE_AXIS_X = 0.4975;
+
+function mirrorAcrossAxis(rect: FracRect, axisX = TEMPLATE_AXIS_X): FracRect {
+    return { ...rect, x: 2 * axisX - rect.x - rect.w };
+}
+
+/** The playing surface the dice roll on: the inside of the square recess. */
+export const DEFAULT_FELT: FracRect = { x: 0.3405, y: 0.218, w: 0.314, h: 0.557 };
 
 /**
  * The region the 3D layer covers. Wider than the felt so held dice can sit in the side
@@ -32,16 +43,28 @@ export const DEFAULT_FELT: FracRect = { x: 0.3365, y: 0.2185, w: 0.3465, h: 0.52
  * it vertically, which means the felt is simply the middle slice of the canvas — so the
  * world the dice roll in is unchanged by the extra room.
  */
-export const DEFAULT_ARENA: FracRect = { x: 0.22975, y: 0.2185, w: 0.56, h: 0.5288 };
+export const DEFAULT_ARENA: FracRect = { x: 0.2325, y: 0.218, w: 0.53, h: 0.557 };
 
 /**
  * The column of recessed slots down the left of the board. Held dice park here, one per
  * slot — the artwork was already drawn with five of them.
  */
-export const DEFAULT_HELD_TRAY: FracRect = { x: 0.2428, y: 0.255, w: 0.0461, h: 0.4505 };
+export const DEFAULT_HELD_TRAY: FracRect = { x: 0.2505, y: 0.245, w: 0.0445, h: 0.478 };
+
+/**
+ * The matching column down the right. Nothing parks here; its slots light up as the
+ * rolls-left indicator.
+ */
+export const DEFAULT_ROLLS_TRAY: FracRect = mirrorAcrossAxis(DEFAULT_HELD_TRAY);
 
 /** The recessed plate along the bottom of the board where the ROLL button sits. */
-export const DEFAULT_ROLL_PLATE: FracRect = { x: 0.3588, y: 0.7945, w: 0.2954, h: 0.1430 };
+export const DEFAULT_ROLL_PLATE: FracRect = { x: 0.351, y: 0.8, w: 0.298, h: 0.148 };
+
+/**
+ * The recessed plate across the top of the board. The HUD (active player, Rules, Stats,
+ * Leave) lives in here, so it never floats over the artwork.
+ */
+export const DEFAULT_TITLE_PLATE: FracRect = { x: 0.351, y: 0.037, w: 0.298, h: 0.147 };
 
 /**
  * The wooden board itself, without the surrounding table dressing. On narrow screens
@@ -115,6 +138,11 @@ export interface DiceSkin {
      * this falls back to the automatic light/dark choice when contrast is too low.
      */
     pipColor?: string;
+    /**
+     * How dark the dice's contact shadow on the felt is, 0 to 1 (default 0.3). Dark,
+     * busy felts need more before a die looks like it is sitting on them.
+     */
+    shadowOpacity?: number;
 }
 
 export interface BoardDefinition {
@@ -129,8 +157,18 @@ export interface BoardDefinition {
     arena: FracRect;
     /** Where held dice park, divided into one slot per die. */
     heldTray: FracRect;
+    /** The right-hand column of slots; the middle three light up as rolls left. */
+    rollsTray: FracRect;
     rollPlate: FracRect;
+    /** The plate across the top, where the HUD sits. */
+    titlePlate: FracRect;
     unit: FracRect;
+    /**
+     * Darkens the felt toward its centre, 0 to 1 (the opacity of black at the centre).
+     * For boards whose felt is a full illustration: a quiet patch under the dice keeps
+     * the pips readable at phone size without touching the art.
+     */
+    feltVignette?: number;
     /**
      * The dice colours offered on this board. The first four are the seat defaults, in seat
      * order, so the first one is the board's signature look. Every board also offers a
@@ -159,7 +197,9 @@ export const BOARDS: BoardDefinition[] = [
         felt: DEFAULT_FELT,
         arena: DEFAULT_ARENA,
         heldTray: DEFAULT_HELD_TRAY,
+        rollsTray: DEFAULT_ROLLS_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
+        titlePlate: DEFAULT_TITLE_PLATE,
         unit: DEFAULT_BOARD_UNIT,
         // Copper leads. Seat 1 used to be the same brown as the felt, which made its
         // dice effectively invisible on this board.
@@ -198,21 +238,25 @@ export const BOARDS: BoardDefinition[] = [
         id: 'the-emerald-forest',
         name: 'Emerald Forest',
         file: 'emeraldforest_board.jpg',
-        description: 'Ancient mossy jade runes, glowing forest wisps, and elven magic.',
+        description: 'Carved green oak and polished jade on the forest floor, wisps drifting through the ferns.',
         imgW: 1920,
         imgH: 1025,
         felt: DEFAULT_FELT,
         arena: DEFAULT_ARENA,
         heldTray: DEFAULT_HELD_TRAY,
+        rollsTray: DEFAULT_ROLLS_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
+        titlePlate: DEFAULT_TITLE_PLATE,
         unit: DEFAULT_BOARD_UNIT,
+        // The felt is plain moss now rather than a painted forest, so a lighter touch.
+        feltVignette: 0.2,
         diceColors: [
             { name: 'Emerald', hex: '#22B36B' },
-            { name: 'Toadstool', hex: '#E04A3F' },
-            { name: 'Wisp Blue', hex: '#3FB8F0' },
-            { name: 'Amethyst', hex: '#9B5DE5' },
+            { name: 'Bronze Leaf', hex: '#C8913F' },
+            { name: 'River Stone', hex: '#A3A091' },
+            { name: 'Lichen', hex: '#D4DC7A' },
             { name: 'White', hex: '#F4F4F4' },
-            { name: 'Old Scroll', hex: '#E2CC8F' },
+            { name: 'Wisp Glow', hex: '#8DF5BE' },
         ],
         // The forest wisps the board description promises.
         particles: { color: '#4DEE9E', motion: 'rise', count: 55 },
@@ -249,19 +293,21 @@ export const BOARDS: BoardDefinition[] = [
         id: 'the-forge',
         name: 'Obsidian Forge',
         file: 'forge.jpg',
-        description: 'Deep underground volcanic anvil stage with flowing orange magma.',
-        imgW: 1408,
-        imgH: 752,
+        description: "Riveted basalt and black iron on a blacksmith's bench, magma glowing in the seams.",
+        imgW: 1920,
+        imgH: 1025,
         felt: DEFAULT_FELT,
         arena: DEFAULT_ARENA,
         heldTray: DEFAULT_HELD_TRAY,
+        rollsTray: DEFAULT_ROLLS_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
+        titlePlate: DEFAULT_TITLE_PLATE,
         unit: DEFAULT_BOARD_UNIT,
         diceColors: [
             { name: 'Obsidian', hex: '#1C1C1C' },
             { name: 'Magma', hex: '#FF5A14' },
             { name: 'Blue Temper', hex: '#4A90E2' },
-            { name: 'Peridot', hex: '#2ECC71' },
+            { name: 'Copper Rivet', hex: '#C07A45' },
             { name: 'White', hex: '#F4F4F4' },
             { name: 'Smoke', hex: '#C4BDB3' },
         ], // obsidian first: the classic look
@@ -272,6 +318,8 @@ export const BOARDS: BoardDefinition[] = [
             roughness: 0.8,
             metalness: 0.1,
             pipColor: '#FF6A00', // glowing magma, on dark dice
+            // Black rock under black dice: without a heavier shadow they float.
+            shadowOpacity: 0.6,
         },
         theme: {
             text: '#FF8C00',
@@ -305,8 +353,11 @@ export const BOARDS: BoardDefinition[] = [
         felt: DEFAULT_FELT,
         arena: DEFAULT_ARENA,
         heldTray: DEFAULT_HELD_TRAY,
+        rollsTray: DEFAULT_ROLLS_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
+        titlePlate: DEFAULT_TITLE_PLATE,
         unit: DEFAULT_BOARD_UNIT,
+        feltVignette: 0.35,
         diceColors: [
             { name: 'Stealie Red', hex: '#FF4757' },
             { name: 'Stealie Blue', hex: '#3B8BFF' },
@@ -348,7 +399,9 @@ export const BOARDS: BoardDefinition[] = [
         felt: DEFAULT_FELT,
         arena: DEFAULT_ARENA,
         heldTray: DEFAULT_HELD_TRAY,
+        rollsTray: DEFAULT_ROLLS_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
+        titlePlate: DEFAULT_TITLE_PLATE,
         unit: DEFAULT_BOARD_UNIT,
         diceColors: [
             { name: 'Maple Leaf', hex: '#A32220' },
@@ -388,11 +441,16 @@ export const BOARDS: BoardDefinition[] = [
         description: 'Mysterious antique explorers compass and aged cartography.',
         imgW: 1920,
         imgH: 1025,
-        felt: DEFAULT_FELT,
-        arena: DEFAULT_ARENA,
+        // This board is framed lower than the template: the title plate, the map and the
+        // bottom plate all sit further down, and the map is shorter than it is wide.
+        felt: { x: 0.3405, y: 0.236, w: 0.314, h: 0.506 },
+        arena: { x: 0.2325, y: 0.236, w: 0.53, h: 0.506 },
         heldTray: DEFAULT_HELD_TRAY,
-        rollPlate: DEFAULT_ROLL_PLATE,
+        rollsTray: DEFAULT_ROLLS_TRAY,
+        rollPlate: { x: 0.348, y: 0.755, w: 0.304, h: 0.17 },
+        titlePlate: { x: 0.345, y: 0.068, w: 0.315, h: 0.137 },
         unit: DEFAULT_BOARD_UNIT,
+        feltVignette: 0.3,
         diceColors: [
             { name: 'Globe Ocean', hex: '#2B4C9B' },
             { name: 'Oxblood', hex: '#A32626' },
@@ -428,22 +486,28 @@ export const BOARDS: BoardDefinition[] = [
         id: 'pirates-cove',
         name: 'Pirates Cove',
         file: 'pirate_board.jpg',
-        description: 'Weathered pirate treasure chest deck with doubloon gold highlights.',
-        imgW: 1024,
-        imgH: 564,
-        felt: DEFAULT_FELT,
-        arena: DEFAULT_ARENA,
+        description: "Weathered teak and brass on a ship's deck, doubloons and gems in the corners.",
+        imgW: 1920,
+        imgH: 1025,
+        // The sailcloth ends a little above the template's felt.
+        felt: { x: 0.3405, y: 0.215, w: 0.314, h: 0.545 },
+        arena: { x: 0.2325, y: 0.215, w: 0.53, h: 0.545 },
         heldTray: DEFAULT_HELD_TRAY,
+        rollsTray: DEFAULT_ROLLS_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
+        titlePlate: DEFAULT_TITLE_PLATE,
         unit: DEFAULT_BOARD_UNIT,
+        // Plain sailcloth now rather than a painted island, so a lighter touch.
+        feltVignette: 0.2,
+        // No black or navy: on the ocean-blue sailcloth they disappear.
         diceColors: [
-            { name: 'Weathered Bone', hex: '#DCC9A0' },
-            { name: 'Jolly Roger', hex: '#1A1A1A' },
-            { name: 'Lagoon', hex: '#2FB5A8' },
-            { name: 'Starfish', hex: '#F2604F' },
+            { name: 'Old Chart', hex: '#DCC9A0' },
+            { name: 'Doubloon', hex: '#D9A934' },
+            { name: 'Ruby', hex: '#C21E3A' },
+            { name: 'Emerald Gem', hex: '#1F9E5A' },
             { name: 'White', hex: '#F4F4F4' },
-            { name: 'Sapphire Gem', hex: '#1B2F8A' },
-        ], // bone first: the classic look
+            { name: 'Cutlass Steel', hex: '#B9C0C7' },
+        ], // parchment first: the classic look
         // Sun-bleached and weathered, whatever colour the player picked.
         diceSkin: {
             roughness: 0.65,
@@ -482,7 +546,9 @@ export const BOARDS: BoardDefinition[] = [
         felt: DEFAULT_FELT,
         arena: DEFAULT_ARENA,
         heldTray: DEFAULT_HELD_TRAY,
+        rollsTray: DEFAULT_ROLLS_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
+        titlePlate: DEFAULT_TITLE_PLATE,
         unit: DEFAULT_BOARD_UNIT,
         // Cyan leads: the indigo that used to be first is the same value as the nebula
         // behind it, so seat 1's dice all but disappeared. The rest are the nebula's own
@@ -503,6 +569,8 @@ export const BOARDS: BoardDefinition[] = [
             // letting the player's colour actually show.
             roughness: 0.18,
             metalness: 0.45,
+            // The nebula is dark and busy; a stronger shadow sits the dice on it.
+            shadowOpacity: 0.55,
         },
         theme: {
             text: '#4DEEEA',
@@ -526,6 +594,109 @@ export const BOARDS: BoardDefinition[] = [
             titleGradient: 'linear-gradient(to right, #4DEEEA, #C77DF3, #4DEEEA)',
         },
     },
+    {
+        id: 'midnight-casino',
+        name: 'Midnight Casino',
+        file: 'midnight_casino_board.jpg',
+        description: 'Green baize in black lacquer and art-deco brass, chips stacked by a martini.',
+        imgW: 1920,
+        imgH: 1025,
+        // The baize and the bottom plate sit a little higher than the template's, and the
+        // left slots a little further in.
+        felt: { x: 0.3405, y: 0.215, w: 0.314, h: 0.538 },
+        arena: { x: 0.2325, y: 0.215, w: 0.53, h: 0.538 },
+        heldTray: { x: 0.2578, y: 0.23, w: 0.0445, h: 0.508 },
+        rollsTray: { x: 0.6978, y: 0.23, w: 0.0445, h: 0.508 },
+        rollPlate: { x: 0.351, y: 0.785, w: 0.298, h: 0.135 },
+        titlePlate: DEFAULT_TITLE_PLATE,
+        unit: DEFAULT_BOARD_UNIT,
+        // The chips, the brass and the table; no green, which vanishes on the baize.
+        diceColors: [
+            { name: 'Ivory Chip', hex: '#F2EBD9' },
+            { name: 'Casino Red', hex: '#C8102E' },
+            { name: 'Chip Black', hex: '#151515' },
+            { name: 'Brass', hex: '#C9A24A' },
+            { name: 'White', hex: '#F4F4F4' },
+            { name: 'Mahogany', hex: '#7A2E1C' },
+        ],
+        // Glossy casino dice.
+        diceSkin: {
+            roughness: 0.12,
+            metalness: 0.05,
+        },
+        theme: {
+            text: '#F3E9CF',
+            bg: '#0F2219',
+            bgAlpha: 'rgba(15, 34, 25, 0.8)',
+            containerBg: 'rgba(15, 34, 25, 0.95)',
+            border: '#C9A24A',
+            borderAlpha: 'rgba(201, 162, 74, 0.5)',
+            focus: '#E6C46E',
+            focusRing: 'rgba(230, 196, 110, 0.3)',
+            placeholder: 'rgba(243, 233, 207, 0.5)',
+            accent: '#D9B45A',
+            accentHover: '#BF9A43',
+            buttonGradientFrom: '#B3122E',
+            buttonGradientTo: '#7A0B1F',
+            buttonText: '#F7EED8',
+            buttonBorder: 'rgba(201, 162, 74, 0.3)',
+            buttonBorderHover: 'rgba(201, 162, 74, 0.5)',
+            diceBorder: '#C9A24A',
+            diceBorderSelected: '#E6C46E',
+            titleGradient: 'linear-gradient(to right, #C9A24A, #F3E9CF, #C9A24A)',
+        },
+    },
+    {
+        id: 'delilahs-garden',
+        name: "Delilah's Garden",
+        file: 'delilahs_garden_board.jpg',
+        description: 'A sunlit garden table, roses and lavender trailing over the frame, tea poured.',
+        imgW: 1920,
+        imgH: 1025,
+        felt: DEFAULT_FELT,
+        arena: DEFAULT_ARENA,
+        heldTray: DEFAULT_HELD_TRAY,
+        rollsTray: DEFAULT_ROLLS_TRAY,
+        rollPlate: DEFAULT_ROLL_PLATE,
+        titlePlate: DEFAULT_TITLE_PLATE,
+        unit: DEFAULT_BOARD_UNIT,
+        diceColors: [
+            { name: 'Rose', hex: '#E87FA3' },
+            { name: 'Lavender', hex: '#9B7FD0' },
+            { name: 'Butter', hex: '#F2D67A' },
+            { name: 'Sage', hex: '#A9C2A2' },
+            { name: 'White', hex: '#F4F4F4' },
+            { name: 'Terracotta', hex: '#C46A43' },
+        ],
+        // Pollen and butterflies hanging in the sun, drifting rather than rising.
+        particles: { color: '#FFD98A', motion: 'drift', count: 35 },
+        // Painted wood, soft and matte.
+        diceSkin: {
+            roughness: 0.45,
+            metalness: 0,
+        },
+        theme: {
+            text: '#FFF4E8',
+            bg: '#2E3B2B',
+            bgAlpha: 'rgba(46, 59, 43, 0.8)',
+            containerBg: 'rgba(46, 59, 43, 0.95)',
+            border: '#E48BA8',
+            borderAlpha: 'rgba(228, 139, 168, 0.5)',
+            focus: '#B49BE0',
+            focusRing: 'rgba(180, 155, 224, 0.3)',
+            placeholder: 'rgba(255, 244, 232, 0.55)',
+            accent: '#F2D06B',
+            accentHover: '#D9B650',
+            buttonGradientFrom: '#E07A9B',
+            buttonGradientTo: '#B9577A',
+            buttonText: '#FFF8F0',
+            buttonBorder: 'rgba(228, 139, 168, 0.3)',
+            buttonBorderHover: 'rgba(228, 139, 168, 0.55)',
+            diceBorder: '#A9C2A2',
+            diceBorderSelected: '#E48BA8',
+            titleGradient: 'linear-gradient(to right, #E48BA8, #B49BE0, #F2D06B)',
+        },
+    },
 ];
 
 export const DEFAULT_BOARD_ID = 'the-cafe';
@@ -542,6 +713,16 @@ export function heldSlotCentres(board: BoardDefinition, count: number): Array<{ 
     return Array.from({ length: count }, (_, i) => ({
         x: x + w / 2,
         y: y + ((i + 0.5) * h) / count,
+    }));
+}
+
+/** A tray split into `count` equal rows, one rect per slot, in image fractions. */
+export function traySlots(tray: FracRect, count: number): FracRect[] {
+    return Array.from({ length: count }, (_, i) => ({
+        x: tray.x,
+        y: tray.y + (i * tray.h) / count,
+        w: tray.w,
+        h: tray.h / count,
     }));
 }
 
