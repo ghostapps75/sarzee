@@ -161,11 +161,12 @@ async function main() {
         return;
     }
 
-    // Sorted so the file does not churn with directory listing order.
+    // Sorted so the file does not churn with directory listing order. Line endings are
+    // ignored in the comparison because git may check the manifest out with CRLF.
     const next = {};
     for (const key of Object.keys(seen).sort()) next[key] = seen[key];
     const text = JSON.stringify(next, null, 2) + '\n';
-    const previous = fs.existsSync(MANIFEST) ? fs.readFileSync(MANIFEST, 'utf8') : null;
+    const previous = fs.existsSync(MANIFEST) ? fs.readFileSync(MANIFEST, 'utf8').replace(/\r\n/g, '\n') : null;
     if (text !== previous) fs.writeFileSync(MANIFEST, text);
 }
 
