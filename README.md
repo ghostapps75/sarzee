@@ -62,7 +62,13 @@ the projected rects over the artwork.
 
 1. Drop the image in `public/textures/`.
 2. Add an entry to `BOARDS` in `lib/boards.ts`.
-3. `npm run opt:textures` to downsize and re-encode it.
+3. `npm run opt:textures` to downsize and re-encode it, and commit the updated
+   `scripts/texture-manifest.json` with the image.
+
+JPEG and palette PNG are lossy, so the script leaves alone anything the manifest says it
+has already processed. An image it has not seen is only rewritten if it is wider than its
+target or the re-encode saves at least 10% and 20 KB; otherwise it is just recorded. Use
+`--force` to re-encode everything anyway.
 
 The shared `DEFAULT_FELT` / `DEFAULT_ROLL_PLATE` / `DEFAULT_BOARD_UNIT` values fit every
 current board, since they come from one template. A board framed differently can override
@@ -123,7 +129,7 @@ Two things worth knowing:
 | `npm run dev` | dev server on `0.0.0.0:3000` |
 | `npm run build` | static export to `out/` |
 | `npm test` | rules and dice-simulation tests |
-| `npm run opt:textures` | downsize/re-encode art in `public/` (`-- --dry` to preview) |
+| `npm run opt:textures` | downsize/re-encode new or changed art in `public/` (`-- --dry`, `-- --force`) |
 | `npm run opt:audio` | encode and level-match sounds (`-- --dry`, `-- --force`) |
 
 ## Deployment
