@@ -19,14 +19,10 @@ import { DIE_HALF, DIE_SIZE, HELD_SCALE, nearestCubeRotation, relabelQuaternion 
 import { PLAYBACK_FPS, SimResult, simulateRoll } from '@/lib/diceSimulation';
 
 export interface DiceArenaHandle {
-    roll: () => void;
+    /** Plays a physics roll that ends on exactly these values. */
     rollToResult: (values: number[], opts?: { chaosMs?: number }) => void;
+    /** Lines the dice up at rest for a fresh turn. */
     reset: () => void;
-    forceResult: (values: number[]) => void;
-
-    getVisualValues: () => number[];
-    getLastEmittedValues: () => number[];
-    getRollSeq: () => number;
     triggerCelebrationShake: (intensity?: number) => void;
 }
 
@@ -57,8 +53,6 @@ interface DiceArenaProps {
      */
     values?: number[];
 }
-
-export { DIE_SIZE } from '@/lib/dieFaces';
 
 /** Height of a die's centre when it is resting on the felt. */
 const REST_Y = DIE_HALF;
@@ -670,7 +664,6 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
             };
 
             return {
-                roll: () => rollToResult([0, 0, 0, 0, 0].map(() => 1 + Math.floor(Math.random() * 6))),
                 rollToResult,
                 reset: () => {
                     s.playback = null;
@@ -686,15 +679,6 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
                     }
                     s.lastEmitted = [1, 1, 1, 1, 1];
                 },
-                forceResult: (values: number[]) => {
-                    s.rollSeq += 1;
-                    s.playback = null;
-                    for (let i = 0; i < 5; i++) setFace(i, clampDie(values[i] ?? 1));
-                    emit(values);
-                },
-                getVisualValues: () => s.lastEmitted.slice(),
-                getLastEmittedValues: () => s.lastEmitted.slice(),
-                getRollSeq: () => s.rollSeq,
                 triggerCelebrationShake: (intensity = 1.2) => {
                     onCelebrationShake?.(intensity);
                 },
