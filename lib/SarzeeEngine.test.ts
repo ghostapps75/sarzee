@@ -1,5 +1,5 @@
 import { SarzeeEngine } from './SarzeeEngine';
-import { ScoreCategory } from './types';
+import { DieValue, ScoreCategory } from './types';
 import assert from 'assert';
 
 async function runTests() {
@@ -122,6 +122,53 @@ async function runTests() {
         // Ordinary categories are unaffected by the joker.
         assert.strictEqual(e.calculatePotentialScore(ScoreCategory.Chance), 20);
         assert.strictEqual(e.calculatePotentialScore(ScoreCategory.Sixes), 0);
+    }
+    console.log("  PASS");
+
+    // Test 8: the upper-section bonus is part of the total, awarded once, at 63
+    console.log("Test 8: upper bonus of 35 at 63+");
+    {
+        const e = new SarzeeEngine();
+        const score = (dice: DieValue[], cat: ScoreCategory) => {
+            e.rollDice(dice);
+            e.commitScore(cat);
+        };
+        score([1, 1, 1, 2, 3], ScoreCategory.Ones); // 3
+        score([2, 2, 2, 1, 3], ScoreCategory.Twos); // 6
+        score([3, 3, 3, 1, 2], ScoreCategory.Threes); // 9
+        score([4, 4, 4, 1, 2], ScoreCategory.Fours); // 12
+        score([5, 5, 5, 1, 2], ScoreCategory.Fives); // 15, running 45
+        assert.strictEqual(e.getGameState().upperBonus, 0, 'no bonus below 63');
+        assert.strictEqual(e.getGameState().totalScore, 45);
+
+        score([6, 6, 6, 1, 2], ScoreCategory.Sixes); // 18, running 63
+        let s = e.getGameState();
+        assert.strictEqual(s.upperBonus, 35, 'bonus awarded the moment the upper section reaches 63');
+        assert.strictEqual(s.totalScore, 63 + 35);
+
+        // Awarded once; later scores add only themselves.
+        score([6, 6, 6, 6, 6], ScoreCategory.Chance); // 30
+        s = e.getGameState();
+        assert.strictEqual(s.upperBonus, 35);
+        assert.strictEqual(s.totalScore, 63 + 35 + 30);
+    }
+    {
+        // One short of 63 earns nothing, however the lower section goes.
+        const e = new SarzeeEngine();
+        const score = (dice: DieValue[], cat: ScoreCategory) => {
+            e.rollDice(dice);
+            e.commitScore(cat);
+        };
+        score([1, 1, 2, 3, 4], ScoreCategory.Ones); // 2, running 62 at the end
+        score([2, 2, 2, 1, 3], ScoreCategory.Twos); // 6
+        score([3, 3, 3, 1, 2], ScoreCategory.Threes); // 9
+        score([4, 4, 4, 1, 2], ScoreCategory.Fours); // 12
+        score([5, 5, 5, 1, 2], ScoreCategory.Fives); // 15
+        score([6, 6, 6, 1, 2], ScoreCategory.Sixes); // 18
+        score([1, 2, 3, 4, 5], ScoreCategory.LargeStraight); // 40
+        const s = e.getGameState();
+        assert.strictEqual(s.upperBonus, 0);
+        assert.strictEqual(s.totalScore, 62 + 40);
     }
     console.log("  PASS");
 

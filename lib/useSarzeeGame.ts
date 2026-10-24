@@ -162,18 +162,26 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
     );
 
     const roll = useCallback(() => {
-        if (!gameState || isRolling || gameState.rollsLeft <= 0 || gameState.isGameOver) return;
+        if (!gameState || isRolling) return;
         const arena = arenaRef.current;
         if (!arena) return;
 
         const engine = enginesRef.current[activePlayer];
+        if (!engine) return;
+
+        // Read the engine, not the React snapshot. A CPU changes its holds and then rolls
+        // from a timer armed before React re-rendered, so `gameState` here can predate
+        // those holds — and a held die would be dealt a fresh random value that the
+        // celebration check then sees. The engine is the one source of truth.
+        const live = engine.getGameState();
+        if (live.rollsLeft <= 0 || live.isGameOver) return;
 
         // The outcome is decided here, up front — the animation is a presentation of a
         // result that already exists, never the thing that determines it.
         const decided: DieValue[] = [];
         for (let i = 0; i < 5; i++) {
-            decided[i] = gameState.heldDice[i]
-                ? normalizeDie(Number(gameState.diceValues[i] ?? 1))
+            decided[i] = live.heldDice[i]
+                ? normalizeDie(Number(live.diceValues[i] ?? 1))
                 : (1 + Math.floor(Math.random() * 6)) as DieValue;
         }
 
@@ -294,6 +302,7 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
 
     const scorecards = useMemo(() => allStates.map((s) => s.scorecard), [allStates]);
     const totals = useMemo(() => allStates.map((s) => s.totalScore), [allStates]);
+    const upperBonuses = useMemo(() => allStates.map((s) => s.upperBonus), [allStates]);
     const yahtzeeBonuses = useMemo(() => allStates.map((s) => s.yahtzeeBonus), [allStates]);
 
     const isHumanTurn = playerTypes[activePlayer] === 'HUMAN';
@@ -303,7 +312,6 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
     return {
         // phase & setup
         phase,
-        setPhase,
         selectedBoard,
         setSelectedBoard,
         board: getBoard(selectedBoard),
@@ -320,9 +328,9 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         enginesRef,
         activePlayer,
         gameState,
-        allStates,
         scorecards,
         totals,
+        upperBonuses,
         yahtzeeBonuses,
         potentialScores,
         setPotentialScores,
@@ -341,8 +349,6 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         syncStates,
 
         // celebrations
-        sarzeesInGame,
-        nancysInGame,
         showCelebration,
         setShowCelebration,
         showNancyCelebration,

@@ -13,6 +13,8 @@ interface ScoreTableProps {
     /** Each player's dice colour, shown beside their name. */
     playerColors?: string[];
     scorecards: Card[];
+    /** The engine's 35-point upper bonus per player, so the card never recomputes it. */
+    upperBonuses: number[];
     yahtzeeBonuses: number[];
     totals: number[];
     activePlayerIndex: number;
@@ -126,6 +128,7 @@ export default function ScoreTable({
     playerNames,
     playerColors = [],
     scorecards,
+    upperBonuses,
     yahtzeeBonuses,
     totals,
     activePlayerIndex,
@@ -167,7 +170,9 @@ export default function ScoreTable({
     const lineUnit = box.h > 0 ? Math.min(56, Math.max(26, (box.h - (tabbed ? TABS_HEIGHT : 0)) / TOTAL_FR)) : 40;
 
     const subtotals = useMemo(() => scorecards.map(upperSubtotal), [scorecards]);
-    const bonuses = useMemo(() => subtotals.map((s) => (s >= 63 ? 35 : 0)), [subtotals]);
+    // The bonus comes from the engine, where it is already part of each total. Working it
+    // out here as well once left the card showing a 35 that the standings didn't include.
+    const bonuses = useMemo(() => scorecards.map((_, i) => upperBonuses[i] ?? 0), [scorecards, upperBonuses]);
     const activeCard = scorecards[activePlayerIndex];
     const tiers = useMemo(
         () => (canSelectCategory && activeCard ? rankOptions(activeCard, potentialScores) : {}),
