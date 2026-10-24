@@ -1,6 +1,6 @@
 # Sarzee
 
-A dice game for 1–4 players, hot-seat, with optional CPU opponents and eight themed
+A dice game for 1–4 players, hot-seat, with optional CPU opponents and ten themed
 tabletops. Next.js static export, three.js for the dice.
 
 ```bash
@@ -70,9 +70,70 @@ has already processed. An image it has not seen is only rewritten if it is wider
 target or the re-encode saves at least 10% and 20 KB; otherwise it is just recorded. Use
 `--force` to re-encode everything anyway.
 
-The shared `DEFAULT_FELT` / `DEFAULT_ROLL_PLATE` / `DEFAULT_BOARD_UNIT` values fit every
-current board, since they come from one template. A board framed differently can override
-any of them.
+Every board is drawn to one template, and each part of it is a rect in `lib/boards.ts`:
+
+| Rect | What it is | Used for | L overlay |
+|---|---|---|---|
+| `felt` | the square recess in the centre | where dice roll | green |
+| `arena` | the felt plus both trays, same height as the felt | the 3D canvas | yellow, dashed |
+| `heldTray` | the five slots down the left | where held dice park | magenta |
+| `rollsTray` | the five slots down the right | the middle three light as rolls left | orange |
+| `rollPlate` | the plate along the bottom | the ROLL button | blue |
+| `titlePlate` | the plate across the top | the HUD: player, rolls, Rules / Stats / Leave | red |
+| `unit` | the wooden board without the table dressing | framing on narrow screens | — |
+
+The `DEFAULT_*` values fit every board drawn to the template, so a new board usually
+needs nothing else. If a render drifts, press **L** and override just the rects that are
+off for that board (the Map Room's plates and map sit lower; the Midnight Casino's slots
+are spaced wider). Keep `arena` centred on the felt and the same height as it, with both
+trays inside it.
+
+Per-board look, all optional except the first two:
+
+- `diceColors`: six named colours drawn from the artwork; the first four are the seat
+  defaults in seat order.
+- `theme`: the colours for the HUD, the ROLL button, the scorecard rail and the setup
+  screen. ROLL is drawn in CSS from `buttonGradientFrom` / `buttonGradientTo`,
+  `buttonText` and `border`; the rolls-left lamps use `accent`.
+- `particles`: ambient motes over the felt, when the setting calls for them.
+- `feltVignette` (0 to 1): darkens the centre of an illustrated felt so pips stay
+  readable at phone size.
+- `diceSkin.shadowOpacity`: a heavier contact shadow for dark, busy felts.
+
+When generating new art, ask for a plain textured felt (texture, not illustration), an
+empty title plate and empty trays: the app draws the HUD and the lamps itself.
+
+#### Generating board art that fits the template
+
+The layout only fits if the render keeps the template's proportions, so give the image
+model an existing board as a layout reference rather than describing the layout alone.
+Midnight Casino, Delilah's Garden and the regenerated Forge, Emerald Forest and Pirates
+Cove were made this way with gpt-image (no watermark):
+
+1. Scale a template board (`linguiniii_board.jpg` has the cleanest recesses) to 1536×820
+   and mirror-pad it to 1536×1024, gpt-image's 3:2 size.
+2. Attach that as the reference with a prompt like the one below.
+3. Crop the render back to the middle 1536×820 band, scale it to 1920×1025, save it in
+   `public/textures/` and run `npm run opt:textures`.
+4. Press **L** and override any rect that drifted.
+
+> Use the attached reference image as an exact layout template and redraw it as a
+> differently themed dice-game board. Keep the board geometry exactly the same as the
+> reference: same position in the frame, same size, same proportions and placement of
+> every recess. Top-down photograph, camera directly overhead. Keep exactly: a square
+> board in the middle of the frame; a recessed rectangular title plate across the top
+> centre; a large square recessed playing area in the centre; a vertical column of five
+> small square recessed slots down the left side and an identical column of five down the
+> right side; a recessed rectangular plate along the bottom centre; a round recessed
+> medallion in each of the four corners. New theme, *[name]*: *[the board's materials]*.
+> The central playing area is a plain, flat, evenly textured surface of *[felt]*, evenly
+> lit, with no illustration and no symbols. The title plate and bottom plate are empty,
+> with no text. The ten small slots are empty plain recessed sockets. The four corner
+> medallions hold *[...]*. Table dressing outside the board only: *[...]*. No text, no
+> letters, no logos, no watermark, no dice anywhere.
+
+Pick a felt of middle lightness: it has to show both the lightest and the darkest of the
+board's six dice colours.
 
 ### The dice
 

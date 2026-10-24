@@ -3,19 +3,32 @@
 
 import React from 'react';
 import { PlayerType } from '@/lib/useSarzeeGame';
+import { BoardTheme } from '@/lib/boards';
+import { PxRect } from '@/lib/useBoardLayout';
 
 interface GameHudProps {
     playerName: string;
     playerType: PlayerType;
     playerColor: string;
     rollsLeft: number;
+    theme: BoardTheme;
+    /** The board's title plate, projected into stage pixels. The HUD lives in it when it fits. */
+    plate: PxRect;
     compact: boolean;
-    /** Keeps the HUD inside the board area rather than under the scorecard rail. */
+    /** Keeps the fallback strip inside the board area rather than under the scorecard rail. */
     rightInset?: number;
     onShowRules: () => void;
     onShowStats: () => void;
     onLeave: () => void;
 }
+
+/** Below this the plate cannot hold a tappable row, so the HUD floats as a strip instead. */
+const MIN_PLATE_HEIGHT = 40;
+/** Plates this tall get two rows: who is up, then labelled buttons. */
+const ROOMY_PLATE_HEIGHT = 72;
+const ROOMY_PLATE_WIDTH = 280;
+/** Narrower than this, the tight row drops the rolls count — the right tray still shows it. */
+const TIGHT_ROLLS_WIDTH = 240;
 
 function cpuLabel(type: PlayerType): string | null {
     switch (type) {
@@ -26,11 +39,165 @@ function cpuLabel(type: PlayerType): string | null {
     }
 }
 
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
 /**
- * Floating status + menu strip. In compact mode everything shrinks to icons so it fits
- * a 360px-wide phone without the buttons sliding off the edge.
+ * Who is up, plus Rules / Stats / Leave.
+ *
+ * It sits inside the recessed title plate the artwork already provides, themed with the
+ * board's colours, so it reads as part of the board instead of floating over it. On a
+ * screen where the plate is too small to tap, it falls back to a compact strip.
  */
-export default function GameHud({
+export default function GameHud(props: GameHudProps) {
+    return props.plate.height >= MIN_PLATE_HEIGHT ? <PlateHud {...props} /> : <StripHud {...props} />;
+}
+
+function PlateHud({
+    playerName,
+    playerType,
+    playerColor,
+    rollsLeft,
+    theme,
+    plate,
+    onShowRules,
+    onShowStats,
+    onLeave,
+}: GameHudProps) {
+    const ai = cpuLabel(playerType);
+
+    // Inset so the plate's own rim still frames the panel.
+    const inset = Math.round(plate.height * 0.08);
+    const width = plate.width - inset * 2;
+    const height = plate.height - inset * 2;
+    const roomy = plate.height >= ROOMY_PLATE_HEIGHT && plate.width >= ROOMY_PLATE_WIDTH;
+    const pad = Math.round(clamp(height * 0.1, 3, 12));
+    const gap = Math.round(clamp(height * 0.08, 3, 10));
+    const rowH = roomy ? (height - pad * 2 - gap) / 2 : height - pad * 2;
+
+    const nameSize = clamp(rowH * (roomy ? 0.52 : 0.38), 11, 22);
+    const labelSize = clamp(rowH * 0.3, 8, 12);
+    const buttonText = clamp(rowH * 0.36, 10, 15);
+    // In the single row the icon buttons are a little narrower than tall, which is what
+    // leaves room for a name on a phone-sized plate.
+    const iconW = rowH * 0.78;
+
+    const themedButton: React.CSSProperties = {
+        background: `linear-gradient(to bottom, ${theme.buttonGradientFrom}, ${theme.buttonGradientTo})`,
+        color: theme.buttonText,
+        border: `1px solid ${theme.buttonBorderHover}`,
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14), 0 2px 6px rgba(0,0,0,0.4)',
+        borderRadius: rowH * 0.28,
+        outlineColor: theme.focus,
+    };
+    const ghostButton: React.CSSProperties = {
+        background: 'transparent',
+        color: theme.placeholder,
+        border: `1px solid ${theme.borderAlpha}`,
+        borderRadius: rowH * 0.28,
+        outlineColor: theme.focus,
+    };
+    const buttonClass =
+        'flex items-center justify-center gap-1.5 font-bold uppercase tracking-wider cursor-pointer transition-[filter,transform] hover:brightness-125 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 shrink-0';
+
+    const who = (
+        <div className="flex items-center min-w-0" style={{ gap: gap }}>
+            <span
+                className="rounded-full animate-pulse shrink-0 ring-1 ring-white/40"
+                style={{ backgroundColor: playerColor, width: nameSize * 0.6, height: nameSize * 0.6 }}
+            />
+            <span className="font-black truncate leading-none" style={{ fontSize: nameSize, color: theme.text }}>
+                {playerName}
+            </span>
+            {ai && (
+                <span
+                    className="px-1.5 py-0.5 rounded-md font-extrabold uppercase tracking-wider shrink-0 leading-none"
+                    style={{
+                        fontSize: labelSize,
+                        color: theme.accent,
+                        backgroundColor: `${theme.accent}22`,
+                        border: `1px solid ${theme.accent}55`,
+                    }}
+                >
+                    {roomy ? ai : 'AI'}
+                </span>
+            )}
+        </div>
+    );
+
+    const rolls = (
+        <div className="flex items-baseline shrink-0 leading-none" style={{ gap: gap * 0.6 }}>
+            <span className="uppercase tracking-widest font-bold" style={{ fontSize: labelSize, color: theme.placeholder }}>
+                Rolls
+            </span>
+            <span className="font-black tabular-nums" style={{ fontSize: nameSize, color: theme.text }}>
+                {rollsLeft}
+            </span>
+        </div>
+    );
+
+    return (
+        <div
+            className="z-[35] flex flex-col backdrop-blur-sm"
+            style={{
+                position: 'absolute',
+                left: plate.left + inset,
+                top: plate.top + inset,
+                width,
+                height,
+                padding: pad,
+                gap,
+                background: theme.containerBg,
+                border: `1px solid ${theme.borderAlpha}`,
+                borderRadius: clamp(height * 0.16, 6, 18),
+                // Sunk into the plate rather than sitting on it.
+                boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.55), 0 1px 0 rgba(255,255,255,0.08)',
+            }}
+        >
+            {roomy ? (
+                <>
+                    <div className="flex items-center justify-between min-w-0" style={{ height: rowH, gap }}>
+                        {who}
+                        {rolls}
+                    </div>
+                    <div className="flex items-stretch" style={{ height: rowH, gap }}>
+                        <button onClick={onShowRules} aria-label="How to play" className={`${buttonClass} flex-1`} style={{ ...themedButton, fontSize: buttonText }}>
+                            <span aria-hidden>📜</span>
+                            <span>Rules</span>
+                        </button>
+                        <button onClick={onShowStats} aria-label="Statistics" className={`${buttonClass} flex-1`} style={{ ...themedButton, fontSize: buttonText }}>
+                            <span aria-hidden>📊</span>
+                            <span>Stats</span>
+                        </button>
+                        <button onClick={onLeave} aria-label="Leave game" className={`${buttonClass} flex-1`} style={{ ...ghostButton, fontSize: buttonText }}>
+                            Leave
+                        </button>
+                    </div>
+                </>
+            ) : (
+                <div className="flex items-center min-w-0" style={{ height: rowH, gap }}>
+                    <div className="flex-1 min-w-0">{who}</div>
+                    {width >= TIGHT_ROLLS_WIDTH ? rolls : <span className="sr-only">{rollsLeft} rolls left</span>}
+                    <button onClick={onShowRules} aria-label="How to play" className={buttonClass} style={{ ...themedButton, width: iconW, height: rowH, fontSize: rowH * 0.42 }}>
+                        <span aria-hidden>📜</span>
+                    </button>
+                    <button onClick={onShowStats} aria-label="Statistics" className={buttonClass} style={{ ...themedButton, width: iconW, height: rowH, fontSize: rowH * 0.42 }}>
+                        <span aria-hidden>📊</span>
+                    </button>
+                    <button onClick={onLeave} aria-label="Leave game" className={buttonClass} style={{ ...ghostButton, width: iconW, height: rowH, fontSize: rowH * 0.4 }}>
+                        <span aria-hidden>✕</span>
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
+/**
+ * Floating status + menu strip, for when the plate is too small to hold the HUD. In
+ * compact mode everything shrinks to icons so it fits a 360px-wide phone without the
+ * buttons sliding off the edge.
+ */
+function StripHud({
     playerName,
     playerType,
     playerColor,

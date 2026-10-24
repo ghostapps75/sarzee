@@ -214,13 +214,30 @@ export default function Page() {
                 gameState.isGameOver ||
                 playerTypes[activePlayer] !== 'HUMAN'
             }
+            rollsLeft={gameState.isGameOver ? 0 : gameState.rollsLeft}
+            hud={(titlePlate) => (
+                <GameHud
+                    playerName={customNames[activePlayer] || `Player ${activePlayer + 1}`}
+                    playerType={playerTypes[activePlayer] ?? 'HUMAN'}
+                    playerColor={playerDiceColors[activePlayer] || '#FFFFFF'}
+                    rollsLeft={gameState.rollsLeft}
+                    theme={board.theme}
+                    plate={titlePlate}
+                    compact={compact}
+                    rightInset={railInset}
+                    onShowRules={() => setShowRules(true)}
+                    onShowStats={() => setShowStats(true)}
+                    onLeave={game.resetAll}
+                />
+            )}
         >
             {cpu.isThinking && cpu.message && (
                 <div
                     className={`absolute -translate-x-1/2 z-40 pointer-events-none animate-in fade-in-0 duration-300 max-w-[92%] ${
-                        compact ? 'bottom-2' : 'top-[18%]'
+                        compact ? 'bottom-2' : ''
                     }`}
-                    style={{ left: `calc((100% - ${railInset}px) / 2)` }}
+                    // Just inside the top of the felt, clear of the HUD in the title plate.
+                    style={compact ? { left: 'var(--felt-cx)' } : { left: 'var(--felt-cx)', top: 'calc(var(--felt-top) + 12px)' }}
                 >
                     <div className="backdrop-blur-md bg-black/75 border border-yellow-500/30 rounded-2xl px-4 py-2.5 shadow-2xl flex items-center gap-2.5">
                         <span className="flex gap-1 shrink-0">
@@ -274,18 +291,6 @@ export default function Page() {
                     <ScoreTable {...scorecardProps} className="flex-1 min-h-0" />
                 </aside>
             )}
-
-            <GameHud
-                playerName={customNames[activePlayer] || `Player ${activePlayer + 1}`}
-                playerType={playerTypes[activePlayer] ?? 'HUMAN'}
-                playerColor={playerDiceColors[activePlayer] || '#FFFFFF'}
-                rollsLeft={gameState.rollsLeft}
-                compact={compact}
-                rightInset={railInset}
-                onShowRules={() => setShowRules(true)}
-                onShowStats={() => setShowStats(true)}
-                onLeave={game.resetAll}
-            />
 
             {phase === 'GAME_OVER' && (
                 <GameOverOverlay

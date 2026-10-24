@@ -34,7 +34,7 @@ const sharp = require('sharp');
 /**
  * Each entry is a folder to sweep and the widest the images in it ever need to be.
  * Board art is drawn at up to ~1300 CSS px (so 1920 covers a high-DPI display); the
- * button art is much smaller on screen; the social thumbnail only ever
+ * celebration art is much smaller on screen; the social thumbnail only ever
  * appears in a link preview.
  */
 const TARGETS = [
