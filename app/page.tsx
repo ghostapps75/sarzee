@@ -29,6 +29,14 @@ function timestampedName(prefix: string) {
     return `${prefix}-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
 }
 
+/**
+ * The PDF is rendered from its own copy of the score pad, laid out at A4 proportions with
+ * every player's column showing. Capturing the live card used to export whatever happened
+ * to be on screen — one tab on a phone or a narrow rail — and a scrolled-off bottom half.
+ */
+const EXPORT_W = 640;
+const EXPORT_H = 905;
+
 export default function Page() {
     const isDev = process.env.NODE_ENV === 'development';
 
@@ -46,7 +54,8 @@ export default function Page() {
         () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debugLayout') === '1'
     );
 
-    const scorecardRef = useRef<HTMLDivElement>(null);
+    const exportRef = useRef<HTMLDivElement>(null);
+    const [exporting, setExporting] = useState(false);
 
     const {
         phase,
@@ -93,20 +102,23 @@ export default function Page() {
     }, [isDev, setShowCelebration]);
 
     const handleDownload = useCallback(async () => {
-        const node = scorecardRef.current;
-        if (!node) return;
+        setExporting(true);
         try {
             const { htmlToImage, jsPDF } = await importExportTools();
+
+            // Give the export copy a couple of frames to mount, measure itself and lay out
+            // its rows before it is photographed.
+            await new Promise<void>((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 80)))
+            );
+            const node = exportRef.current;
+            if (!node) throw new Error('scorecard export copy did not mount');
+
             const dataUrl = await htmlToImage.toPng(node, {
-                // The card scrolls on short screens; capture all of it, not just what's in view.
-                // scrollHeight leaves out the card's borders, so add them back or the clone
-                // overflows by a few pixels and draws scrollbars into the image.
-                height: node.scrollHeight + node.offsetHeight - node.clientHeight,
-                style: { overflow: 'hidden' },
+                width: EXPORT_W,
+                height: EXPORT_H,
                 // Print resolution: the card is a few hundred CSS px wide but fills an A4 page.
                 pixelRatio: 3,
-                filter: (n: HTMLElement) =>
-                    !n.className || typeof n.className !== 'string' || !n.className.includes('helper-exclude-pdf'),
             });
 
             const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
@@ -124,6 +136,8 @@ export default function Page() {
         } catch (e) {
             console.error('Export failed', e);
             alert('Failed to generate scorecard PDF.');
+        } finally {
+            setExporting(false);
         }
     }, []);
 
@@ -159,7 +173,6 @@ export default function Page() {
         : viewport.height;
 
     const scorecardProps = {
-        ref: scorecardRef,
         playerNames: customNames,
         playerColors: playerDiceColors,
         scorecards,
@@ -235,25 +248,27 @@ export default function Page() {
 
     return (
         <div className="fixed inset-0 w-full h-full overflow-hidden bg-black" style={{ height: '100dvh' }}>
+            {/* The stage keeps the same place in the tree in both layouts, so flipping between
+                them (rotating a phone) restyles the board rather than remounting it. A remount
+                dropped the roll in flight — the arena that owned the playback was gone, the
+                turn never reported back, and ROLL sat dead until the watchdog gave up. */}
+            <div className="absolute left-0 top-0 w-full" style={{ height: boardHeight }}>
+                {stage}
+            </div>
             {stacked ? (
-                <div className="absolute inset-0 flex flex-col">
-                    <div className="relative shrink-0 w-full" style={{ height: boardHeight }}>
-                        {stage}
-                    </div>
-                    <div className="flex-1 min-h-0 p-1.5 pt-2" style={{ backgroundColor: board.theme.bg }}>
-                        <ScoreTable {...scorecardProps} className="h-full" />
-                    </div>
+                <div
+                    className="absolute left-0 right-0 bottom-0 p-1.5 pt-2"
+                    style={{ top: boardHeight, backgroundColor: board.theme.bg }}
+                >
+                    <ScoreTable {...scorecardProps} className="h-full" />
                 </div>
             ) : (
-                <>
-                    {stage}
-                    <aside
-                        className="absolute right-0 top-0 bottom-0 z-[60] flex flex-col p-2"
-                        style={{ width: viewport.railWidth, backgroundColor: `${board.theme.bg}f0` }}
-                    >
-                        <ScoreTable {...scorecardProps} className="flex-1 min-h-0" />
-                    </aside>
-                </>
+                <aside
+                    className="absolute right-0 top-0 bottom-0 z-[60] flex flex-col p-2"
+                    style={{ width: viewport.railWidth, backgroundColor: `${board.theme.bg}f0` }}
+                >
+                    <ScoreTable {...scorecardProps} className="flex-1 min-h-0" />
+                </aside>
             )}
 
             <GameHud
@@ -280,6 +295,23 @@ export default function Page() {
 
             <RulesDrawer isOpen={showRules} onClose={() => setShowRules(false)} theme={board.theme} />
             <StatsDashboard isOpen={showStats} onClose={() => setShowStats(false)} theme={board.theme} />
+
+            {/* Off-screen, print-shaped copy of the pad that the PDF is made from. */}
+            {exporting && (
+                <div
+                    aria-hidden
+                    className="fixed top-0 pointer-events-none"
+                    style={{ left: -10000, width: EXPORT_W, height: EXPORT_H }}
+                >
+                    <ScoreTable
+                        {...scorecardProps}
+                        ref={exportRef}
+                        canSelectCategory={false}
+                        highlightedCategory={null}
+                        className="h-full"
+                    />
+                </div>
+            )}
 
             {isDev && (
                 <div className="absolute bottom-1 left-1 z-[999] font-mono text-[9px] text-white/40 pointer-events-none">

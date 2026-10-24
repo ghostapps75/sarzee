@@ -92,7 +92,7 @@ export default function GameOverOverlay({
                         })}
                     </div>
 
-                    <div className="mt-6 flex items-center justify-center gap-3 flex-wrap helper-exclude-pdf">
+                    <div className="mt-6 flex items-center justify-center gap-3 flex-wrap">
                         <button
                             onClick={onNewGame}
                             className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-bold rounded-xl shadow-xl transition-all active:scale-95 border-2 border-blue-400/30 cursor-pointer"
