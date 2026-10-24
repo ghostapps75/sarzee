@@ -114,10 +114,14 @@ export default function Page() {
             const node = exportRef.current;
             if (!node) throw new Error('scorecard export copy did not mount');
 
-            const dataUrl = await htmlToImage.toPng(node, {
+            // JPEG rather than PNG: jsPDF stores a PNG's pixels uncompressed, which made a
+            // one-page scorecard a 20 MB file. The pad is cream paper and printed type, so a
+            // high-quality JPEG is indistinguishable and about a hundredth of the size.
+            const dataUrl = await htmlToImage.toJpeg(node, {
                 width: EXPORT_W,
                 height: EXPORT_H,
-                // Print resolution: the card is a few hundred CSS px wide but fills an A4 page.
+                quality: 0.92,
+                // Print resolution: the copy is 640 CSS px wide but fills an A4 page.
                 pixelRatio: 3,
             });
 
@@ -131,7 +135,7 @@ export default function Page() {
             const scale = Math.min((pageW - margin * 2) / props.width, (pageH - margin * 2) / props.height);
             const w = props.width * scale;
             const h = props.height * scale;
-            pdf.addImage(dataUrl, 'PNG', (pageW - w) / 2, (pageH - h) / 2, w, h);
+            pdf.addImage(dataUrl, 'JPEG', (pageW - w) / 2, (pageH - h) / 2, w, h);
             pdf.save(`${timestampedName('sarzee-scorecard')}.pdf`);
         } catch (e) {
             console.error('Export failed', e);
