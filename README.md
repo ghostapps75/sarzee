@@ -1,6 +1,6 @@
 # Sarzee
 
-A dice game for 1–4 players, hot-seat, with optional CPU opponents and eight themed
+A dice game for 1–4 players, hot-seat, with optional CPU opponents and ten themed
 tabletops. Next.js static export, three.js for the dice.
 
 ```bash
@@ -78,9 +78,9 @@ Every board is drawn to one template, and each part of it is a rect in `lib/boar
 
 The `DEFAULT_*` values fit every board drawn to the template, so a new board usually
 needs nothing else. If a render drifts, press **L** and override just the rects that are
-off for that board (the Map Room does this: its plates and map sit lower). Keep `arena`
-centred on the felt and the same height as it, and keep `rollsTray` the mirror of
-`heldTray`.
+off for that board (the Map Room's plates and map sit lower; the Midnight Casino's slots
+are spaced wider). Keep `arena` centred on the felt and the same height as it, with both
+trays inside it.
 
 Per-board look, all optional except the first two:
 
@@ -96,6 +96,38 @@ Per-board look, all optional except the first two:
 
 When generating new art, ask for a plain textured felt (texture, not illustration), an
 empty title plate and empty trays: the app draws the HUD and the lamps itself.
+
+#### Generating board art that fits the template
+
+The layout only fits if the render keeps the template's proportions, so give the image
+model an existing board as a layout reference rather than describing the layout alone.
+Midnight Casino, Delilah's Garden and the regenerated Forge, Emerald Forest and Pirates
+Cove were made this way with gpt-image (no watermark):
+
+1. Scale a template board (`linguiniii_board.jpg` has the cleanest recesses) to 1536×820
+   and mirror-pad it to 1536×1024, gpt-image's 3:2 size.
+2. Attach that as the reference with a prompt like the one below.
+3. Crop the render back to the middle 1536×820 band, scale it to 1920×1025, save it in
+   `public/textures/` and run `npm run opt:textures`.
+4. Press **L** and override any rect that drifted.
+
+> Use the attached reference image as an exact layout template and redraw it as a
+> differently themed dice-game board. Keep the board geometry exactly the same as the
+> reference: same position in the frame, same size, same proportions and placement of
+> every recess. Top-down photograph, camera directly overhead. Keep exactly: a square
+> board in the middle of the frame; a recessed rectangular title plate across the top
+> centre; a large square recessed playing area in the centre; a vertical column of five
+> small square recessed slots down the left side and an identical column of five down the
+> right side; a recessed rectangular plate along the bottom centre; a round recessed
+> medallion in each of the four corners. New theme, *[name]*: *[the board's materials]*.
+> The central playing area is a plain, flat, evenly textured surface of *[felt]*, evenly
+> lit, with no illustration and no symbols. The title plate and bottom plate are empty,
+> with no text. The ten small slots are empty plain recessed sockets. The four corner
+> medallions hold *[...]*. Table dressing outside the board only: *[...]*. No text, no
+> letters, no logos, no watermark, no dice anywhere.
+
+Pick a felt of middle lightness: it has to show both the lightest and the darkest of the
+board's six dice colours.
 
 ### The dice
 
