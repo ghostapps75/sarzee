@@ -64,9 +64,38 @@ the projected rects over the artwork.
 2. Add an entry to `BOARDS` in `lib/boards.ts`.
 3. `npm run opt:textures` to downsize and re-encode it.
 
-The shared `DEFAULT_FELT` / `DEFAULT_ROLL_PLATE` / `DEFAULT_BOARD_UNIT` values fit every
-current board, since they come from one template. A board framed differently can override
-any of them.
+Every board is drawn to one template, and each part of it is a rect in `lib/boards.ts`:
+
+| Rect | What it is | Used for | L overlay |
+|---|---|---|---|
+| `felt` | the square recess in the centre | where dice roll | green |
+| `arena` | the felt plus both trays, same height as the felt | the 3D canvas | yellow, dashed |
+| `heldTray` | the five slots down the left | where held dice park | magenta |
+| `rollsTray` | the five slots down the right | the middle three light as rolls left | orange |
+| `rollPlate` | the plate along the bottom | the ROLL button | blue |
+| `titlePlate` | the plate across the top | the HUD: player, rolls, Rules / Stats / Leave | red |
+| `unit` | the wooden board without the table dressing | framing on narrow screens | — |
+
+The `DEFAULT_*` values fit every board drawn to the template, so a new board usually
+needs nothing else. If a render drifts, press **L** and override just the rects that are
+off for that board (the Map Room does this: its plates and map sit lower). Keep `arena`
+centred on the felt and the same height as it, and keep `rollsTray` the mirror of
+`heldTray`.
+
+Per-board look, all optional except the first two:
+
+- `diceColors`: six named colours drawn from the artwork; the first four are the seat
+  defaults in seat order.
+- `theme`: the colours for the HUD, the ROLL button, the scorecard rail and the setup
+  screen. ROLL is drawn in CSS from `buttonGradientFrom` / `buttonGradientTo`,
+  `buttonText` and `border`; the rolls-left lamps use `accent`.
+- `particles`: ambient motes over the felt, when the setting calls for them.
+- `feltVignette` (0 to 1): darkens the centre of an illustrated felt so pips stay
+  readable at phone size.
+- `diceSkin.shadowOpacity`: a heavier contact shadow for dark, busy felts.
+
+When generating new art, ask for a plain textured felt (texture, not illustration), an
+empty title plate and empty trays: the app draws the HUD and the lamps itself.
 
 ### The dice
 

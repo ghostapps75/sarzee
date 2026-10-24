@@ -3,8 +3,8 @@
 
 import React, { useCallback, useRef } from 'react';
 import DiceArena, { DiceArenaHandle } from './DiceArena';
-import { BoardDefinition } from '@/lib/boards';
-import { BoardFit, Inset, useBoardLayout } from '@/lib/useBoardLayout';
+import { BoardDefinition, BoardTheme, traySlots } from '@/lib/boards';
+import { BoardFit, Inset, PxRect, useBoardLayout } from '@/lib/useBoardLayout';
 
 interface BoardStageProps {
     board: BoardDefinition;
@@ -22,33 +22,72 @@ interface BoardStageProps {
     values?: number[];
     lowPower: boolean;
     showDebugNumbers?: boolean;
-    /** Draws the projected felt and roll-plate rects, for checking alignment. */
+    /** Draws the projected felt, tray, plate and arena rects, for checking alignment. */
     debugRects?: boolean;
     onRoll: () => void;
     rollDisabled: boolean;
+    /** Lights that many of the right tray's slots. */
+    rollsLeft: number;
+    /** Renders the HUD, given the board's title plate in stage pixels. */
+    hud?: (titlePlate: PxRect) => React.ReactNode;
     children?: React.ReactNode;
 }
 
-/**
- * roll_button.PNG is 1536x1024 but the drawn button only occupies the middle of it —
- * the rest is transparent padding. These are the measured bounds of the opaque pixels,
- * so the artwork can be sized by its *visible* extent rather than its canvas.
- */
-const ROLL_ART = { fx: 0.2161, fy: 0.3379, fw: 0.5716, fh: 0.2959, aspect: 1536 / 1024 };
-/** How much of the plate's height the drawn button should occupy. */
-const ROLL_ART_FILL = 0.92;
+/** Rolls a turn starts with, and so the number of lamps in the right tray. */
+const ROLLS_PER_TURN = 3;
+/** The tray has five slots; the lamps take the middle three so the column stays balanced. */
+const TRAY_SLOTS = 5;
+const FIRST_LAMP_SLOT = 1;
 
-function rollArtStyle(plateW: number, plateH: number): React.CSSProperties {
-    const artH = plateH * ROLL_ART_FILL;
-    // Also cap by width so a short, wide plate never overflows.
-    const byWidth = (plateW * 0.96) / ROLL_ART.fw;
-    const imgW = Math.min(artH / ROLL_ART.fh, byWidth / ROLL_ART.aspect) * ROLL_ART.aspect;
-    const imgH = imgW / ROLL_ART.aspect;
+/**
+ * The ROLL button's face, drawn in CSS from the board's theme so it belongs to every board
+ * (the old shared PNG was copper and blue on the lava, the nebula and the forest alike).
+ * Sized from the plate it sits in, so it stays crisp and in proportion at any size.
+ */
+function rollFaceStyle(theme: BoardTheme, plate: PxRect): React.CSSProperties {
+    const h = Math.min(plate.height * 0.7, plate.width * 0.26);
+    const w = Math.min(plate.width * 0.86, h * 3.8);
     return {
-        width: imgW,
-        height: imgH,
-        left: plateW / 2 - (ROLL_ART.fx + ROLL_ART.fw / 2) * imgW,
-        top: plateH / 2 - (ROLL_ART.fy + ROLL_ART.fh / 2) * imgH,
+        width: w,
+        height: h,
+        borderRadius: h * 0.3,
+        border: `${Math.max(1.5, h * 0.045).toFixed(1)}px solid ${theme.border}`,
+        background: `linear-gradient(to bottom, ${theme.buttonGradientFrom}, ${theme.buttonGradientTo})`,
+        color: theme.buttonText,
+        fontSize: h * 0.46,
+        letterSpacing: '0.2em',
+        // A raised bevel, a drop onto the plate, and a faint glow in the board's focus colour.
+        boxShadow: [
+            `inset 0 ${(h * 0.06).toFixed(1)}px 0 rgba(255,255,255,0.22)`,
+            `inset 0 -${(h * 0.08).toFixed(1)}px 0 rgba(0,0,0,0.3)`,
+            `0 ${(h * 0.12).toFixed(1)}px ${(h * 0.3).toFixed(1)}px rgba(0,0,0,0.55)`,
+            `0 0 ${(h * 0.4).toFixed(1)}px ${theme.focusRing}`,
+        ].join(', '),
+    };
+}
+
+/** One lamp in the right tray: a lit gem in the board's accent colour, or a dark socket. */
+function lampStyle(theme: BoardTheme, slot: PxRect, lit: boolean): React.CSSProperties {
+    const size = Math.min(slot.width, slot.height) * 0.6;
+    return {
+        position: 'absolute',
+        left: slot.left + (slot.width - size) / 2,
+        top: slot.top + (slot.height - size) / 2,
+        width: size,
+        height: size,
+        borderRadius: size * 0.28,
+        transition: 'background 400ms ease, box-shadow 400ms ease, opacity 400ms ease',
+        ...(lit
+            ? {
+                  background: `radial-gradient(circle at 35% 30%, rgba(255,255,255,0.85) 0%, ${theme.accent} 38%, ${theme.accentHover} 100%)`,
+                  boxShadow: `0 0 ${(size * 0.55).toFixed(1)}px ${theme.accent}, inset 0 -${(size * 0.1).toFixed(1)}px ${(size * 0.2).toFixed(1)}px rgba(0,0,0,0.35)`,
+                  opacity: 1,
+              }
+            : {
+                  background: 'rgba(0,0,0,0.5)',
+                  boxShadow: `inset 0 ${(size * 0.1).toFixed(1)}px ${(size * 0.25).toFixed(1)}px rgba(0,0,0,0.6), 0 0 0 1px ${theme.borderAlpha}`,
+                  opacity: 0.8,
+              }),
     };
 }
 
@@ -112,6 +151,8 @@ export default function BoardStage({
     debugRects = false,
     onRoll,
     rollDisabled,
+    rollsLeft,
+    hud,
     children,
 }: BoardStageProps) {
     const hostRef = useRef<HTMLDivElement>(null);
@@ -139,13 +180,54 @@ export default function BoardStage({
 
     // The 3D layer covers more than the felt so held dice can sit in the side trays.
     const arena = layout.projectStyle(board.arena);
+    const felt = layout.projectStyle(board.felt);
     const rollPlate = layout.projectStyle(board.rollPlate);
+    const titlePlate = layout.project(board.titlePlate);
+    const lampSlots = traySlots(board.rollsTray, TRAY_SLOTS)
+        .slice(FIRST_LAMP_SLOT, FIRST_LAMP_SLOT + ROLLS_PER_TURN)
+        .map(layout.project);
+    const vignette = board.feltVignette ?? 0;
 
     return (
-        <div ref={hostRef} className="absolute inset-0 overflow-hidden" style={{ backgroundColor: board.theme.bg }}>
+        <div
+            ref={hostRef}
+            className="absolute inset-0 overflow-hidden"
+            style={
+                {
+                    backgroundColor: board.theme.bg,
+                    // For overlays passed in as children that want to sit relative to the felt.
+                    '--felt-top': `${felt.top}px`,
+                    '--felt-cx': `${felt.left + felt.width / 2}px`,
+                } as React.CSSProperties
+            }
+        >
             {layout.ready && (
                 <>
                     <div ref={stageRef} className="absolute inset-0" style={layout.backgroundStyle}>
+                        {/* Quiets an illustrated felt under the dice: darkest in the middle,
+                            nothing at the edges, so there is no visible box. */}
+                        {vignette > 0 && (
+                            <div
+                                className="z-[5] pointer-events-none"
+                                style={{
+                                    ...felt,
+                                    background: `radial-gradient(ellipse closest-side, rgba(0,0,0,${vignette}) 0%, rgba(0,0,0,${(vignette * 0.85).toFixed(3)}) 45%, rgba(0,0,0,0) 100%)`,
+                                }}
+                            />
+                        )}
+
+                        {/* Rolls left, lit in the right-hand tray. They go dark from the top
+                            as rolls are spent. Under the dice canvas, which is transparent.
+                            Decorative: the HUD carries the count for screen readers. */}
+                        {lampSlots.map((slot, i) => (
+                            <div
+                                key={i}
+                                aria-hidden
+                                className="z-[5] pointer-events-none"
+                                style={lampStyle(board.theme, slot, i >= ROLLS_PER_TURN - rollsLeft)}
+                            />
+                        ))}
+
                         {/* Spans the felt plus both trays; the dice themselves stay on the felt. */}
                         <div className="z-10" style={arena}>
                             <DiceArena
@@ -165,29 +247,37 @@ export default function BoardStage({
                         </div>
 
                         {/* ROLL, sitting in the recessed plate the artwork already provides.
-                            The whole plate is the tap target; the artwork is centred inside it. */}
+                            The whole plate is the tap target; the face is centred inside it. */}
                         <button
                             onClick={onRoll}
                             disabled={rollDisabled}
                             aria-label="Roll the dice"
-                            className="z-30 overflow-hidden active:scale-95 transition-transform disabled:opacity-45 disabled:grayscale disabled:cursor-not-allowed cursor-pointer bg-transparent border-0 p-0"
+                            className="z-30 flex items-center justify-center active:scale-95 enabled:hover:brightness-115 transition-[transform,filter] disabled:opacity-45 disabled:grayscale disabled:cursor-not-allowed cursor-pointer bg-transparent border-0 p-0 select-none"
                             style={rollPlate}
                         >
-                            <img
-                                src="/assets/roll_button.PNG"
-                                alt="ROLL"
-                                draggable={false}
-                                className="absolute max-w-none select-none drop-shadow-xl"
-                                style={rollArtStyle(rollPlate.width, rollPlate.height)}
-                            />
+                            <span
+                                className="flex items-center justify-center font-black uppercase leading-none"
+                                style={rollFaceStyle(board.theme, rollPlate)}
+                            >
+                                {/* Letter-spacing pads the right of the last letter; this evens it. */}
+                                <span style={{ marginRight: '-0.2em' }}>Roll</span>
+                            </span>
                         </button>
+
+                        {hud?.(titlePlate)}
 
                         {debugRects && (
                             <>
-                                <div className="z-[999] pointer-events-none border-2 border-emerald-400" style={layout.projectStyle(board.felt)} />
+                                <div className="z-[999] pointer-events-none border-2 border-emerald-400" style={felt} />
                                 <div className="z-[999] pointer-events-none border-2 border-yellow-400 border-dashed" style={arena} />
-                                <div className="z-[999] pointer-events-none border-2 border-fuchsia-500" style={layout.projectStyle(board.heldTray)} />
+                                {traySlots(board.heldTray, TRAY_SLOTS).map((slot, i) => (
+                                    <div key={`held-${i}`} className="z-[999] pointer-events-none border-2 border-fuchsia-500" style={layout.projectStyle(slot)} />
+                                ))}
+                                {traySlots(board.rollsTray, TRAY_SLOTS).map((slot, i) => (
+                                    <div key={`rolls-${i}`} className="z-[999] pointer-events-none border-2 border-orange-400" style={layout.projectStyle(slot)} />
+                                ))}
                                 <div className="z-[999] pointer-events-none border-2 border-sky-400" style={rollPlate} />
+                                <div className="z-[999] pointer-events-none border-2 border-red-500" style={layout.projectStyle(board.titlePlate)} />
                             </>
                         )}
                     </div>

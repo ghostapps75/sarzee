@@ -12,9 +12,10 @@
 // pixels through the same transform it uses to draw the image, so the felt is always
 // exactly on the felt no matter what shape the screen is.
 //
-// The values below were measured off board_texture.jpg and verified against all
-// eight boards — they share a common template, so one set fits them all. A board
-// with different framing can override `felt` / `rollPlate` / `unit` individually.
+// The values below were measured from luminance profiles across the recess edges of
+// board_texture.jpg and linguiniii_board.jpg, then checked against every board under the
+// L overlay — they share a common template, so one set fits them all. A board with
+// different framing (the Map Room sits lower) overrides the rects that drifted.
 
 export interface FracRect {
     x: number;
@@ -23,8 +24,18 @@ export interface FracRect {
     h: number;
 }
 
-/** The playing surface the dice roll on. */
-export const DEFAULT_FELT: FracRect = { x: 0.3365, y: 0.2185, w: 0.3465, h: 0.5288 };
+/**
+ * The template's vertical centre line. The artwork is centred a hair left of the image
+ * centre, so the felt and the two trays are placed about this rather than about 0.5.
+ */
+const TEMPLATE_AXIS_X = 0.4975;
+
+function mirrorAcrossAxis(rect: FracRect, axisX = TEMPLATE_AXIS_X): FracRect {
+    return { ...rect, x: 2 * axisX - rect.x - rect.w };
+}
+
+/** The playing surface the dice roll on: the inside of the square recess. */
+export const DEFAULT_FELT: FracRect = { x: 0.3405, y: 0.218, w: 0.314, h: 0.557 };
 
 /**
  * The region the 3D layer covers. Wider than the felt so held dice can sit in the side
@@ -32,16 +43,28 @@ export const DEFAULT_FELT: FracRect = { x: 0.3365, y: 0.2185, w: 0.3465, h: 0.52
  * it vertically, which means the felt is simply the middle slice of the canvas — so the
  * world the dice roll in is unchanged by the extra room.
  */
-export const DEFAULT_ARENA: FracRect = { x: 0.22975, y: 0.2185, w: 0.56, h: 0.5288 };
+export const DEFAULT_ARENA: FracRect = { x: 0.2325, y: 0.218, w: 0.53, h: 0.557 };
 
 /**
  * The column of recessed slots down the left of the board. Held dice park here, one per
  * slot — the artwork was already drawn with five of them.
  */
-export const DEFAULT_HELD_TRAY: FracRect = { x: 0.2428, y: 0.255, w: 0.0461, h: 0.4505 };
+export const DEFAULT_HELD_TRAY: FracRect = { x: 0.2505, y: 0.245, w: 0.0445, h: 0.478 };
+
+/**
+ * The matching column down the right. Nothing parks here; its slots light up as the
+ * rolls-left indicator.
+ */
+export const DEFAULT_ROLLS_TRAY: FracRect = mirrorAcrossAxis(DEFAULT_HELD_TRAY);
 
 /** The recessed plate along the bottom of the board where the ROLL button sits. */
-export const DEFAULT_ROLL_PLATE: FracRect = { x: 0.3588, y: 0.7945, w: 0.2954, h: 0.1430 };
+export const DEFAULT_ROLL_PLATE: FracRect = { x: 0.351, y: 0.8, w: 0.298, h: 0.148 };
+
+/**
+ * The recessed plate across the top of the board. The HUD (active player, Rules, Stats,
+ * Leave) lives in here, so it never floats over the artwork.
+ */
+export const DEFAULT_TITLE_PLATE: FracRect = { x: 0.351, y: 0.037, w: 0.298, h: 0.147 };
 
 /**
  * The wooden board itself, without the surrounding table dressing. On narrow screens
@@ -115,6 +138,11 @@ export interface DiceSkin {
      * this falls back to the automatic light/dark choice when contrast is too low.
      */
     pipColor?: string;
+    /**
+     * How dark the dice's contact shadow on the felt is, 0 to 1 (default 0.3). Dark,
+     * busy felts need more before a die looks like it is sitting on them.
+     */
+    shadowOpacity?: number;
 }
 
 export interface BoardDefinition {
@@ -129,8 +157,18 @@ export interface BoardDefinition {
     arena: FracRect;
     /** Where held dice park, divided into one slot per die. */
     heldTray: FracRect;
+    /** The right-hand column of slots; the middle three light up as rolls left. */
+    rollsTray: FracRect;
     rollPlate: FracRect;
+    /** The plate across the top, where the HUD sits. */
+    titlePlate: FracRect;
     unit: FracRect;
+    /**
+     * Darkens the felt toward its centre, 0 to 1 (the opacity of black at the centre).
+     * For boards whose felt is a full illustration: a quiet patch under the dice keeps
+     * the pips readable at phone size without touching the art.
+     */
+    feltVignette?: number;
     /**
      * The dice colours offered on this board. The first four are the seat defaults, in seat
      * order, so the first one is the board's signature look. Every board also offers a
@@ -159,7 +197,9 @@ export const BOARDS: BoardDefinition[] = [
         felt: DEFAULT_FELT,
         arena: DEFAULT_ARENA,
         heldTray: DEFAULT_HELD_TRAY,
+        rollsTray: DEFAULT_ROLLS_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
+        titlePlate: DEFAULT_TITLE_PLATE,
         unit: DEFAULT_BOARD_UNIT,
         // Copper leads. Seat 1 used to be the same brown as the felt, which made its
         // dice effectively invisible on this board.
@@ -204,8 +244,11 @@ export const BOARDS: BoardDefinition[] = [
         felt: DEFAULT_FELT,
         arena: DEFAULT_ARENA,
         heldTray: DEFAULT_HELD_TRAY,
+        rollsTray: DEFAULT_ROLLS_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
+        titlePlate: DEFAULT_TITLE_PLATE,
         unit: DEFAULT_BOARD_UNIT,
+        feltVignette: 0.3,
         diceColors: [
             { name: 'Emerald', hex: '#22B36B' },
             { name: 'Toadstool', hex: '#E04A3F' },
@@ -255,7 +298,9 @@ export const BOARDS: BoardDefinition[] = [
         felt: DEFAULT_FELT,
         arena: DEFAULT_ARENA,
         heldTray: DEFAULT_HELD_TRAY,
+        rollsTray: DEFAULT_ROLLS_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
+        titlePlate: DEFAULT_TITLE_PLATE,
         unit: DEFAULT_BOARD_UNIT,
         diceColors: [
             { name: 'Obsidian', hex: '#1C1C1C' },
@@ -272,6 +317,8 @@ export const BOARDS: BoardDefinition[] = [
             roughness: 0.8,
             metalness: 0.1,
             pipColor: '#FF6A00', // glowing magma, on dark dice
+            // Black rock under black dice: without a heavier shadow they float.
+            shadowOpacity: 0.6,
         },
         theme: {
             text: '#FF8C00',
@@ -305,8 +352,11 @@ export const BOARDS: BoardDefinition[] = [
         felt: DEFAULT_FELT,
         arena: DEFAULT_ARENA,
         heldTray: DEFAULT_HELD_TRAY,
+        rollsTray: DEFAULT_ROLLS_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
+        titlePlate: DEFAULT_TITLE_PLATE,
         unit: DEFAULT_BOARD_UNIT,
+        feltVignette: 0.35,
         diceColors: [
             { name: 'Stealie Red', hex: '#FF4757' },
             { name: 'Stealie Blue', hex: '#3B8BFF' },
@@ -348,7 +398,9 @@ export const BOARDS: BoardDefinition[] = [
         felt: DEFAULT_FELT,
         arena: DEFAULT_ARENA,
         heldTray: DEFAULT_HELD_TRAY,
+        rollsTray: DEFAULT_ROLLS_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
+        titlePlate: DEFAULT_TITLE_PLATE,
         unit: DEFAULT_BOARD_UNIT,
         diceColors: [
             { name: 'Maple Leaf', hex: '#A32220' },
@@ -388,11 +440,16 @@ export const BOARDS: BoardDefinition[] = [
         description: 'Mysterious antique explorers compass and aged cartography.',
         imgW: 1920,
         imgH: 1025,
-        felt: DEFAULT_FELT,
-        arena: DEFAULT_ARENA,
+        // This board is framed lower than the template: the title plate, the map and the
+        // bottom plate all sit further down, and the map is shorter than it is wide.
+        felt: { x: 0.3405, y: 0.236, w: 0.314, h: 0.506 },
+        arena: { x: 0.2325, y: 0.236, w: 0.53, h: 0.506 },
         heldTray: DEFAULT_HELD_TRAY,
-        rollPlate: DEFAULT_ROLL_PLATE,
+        rollsTray: DEFAULT_ROLLS_TRAY,
+        rollPlate: { x: 0.348, y: 0.755, w: 0.304, h: 0.17 },
+        titlePlate: { x: 0.345, y: 0.068, w: 0.315, h: 0.137 },
         unit: DEFAULT_BOARD_UNIT,
+        feltVignette: 0.3,
         diceColors: [
             { name: 'Globe Ocean', hex: '#2B4C9B' },
             { name: 'Oxblood', hex: '#A32626' },
@@ -431,11 +488,15 @@ export const BOARDS: BoardDefinition[] = [
         description: 'Weathered pirate treasure chest deck with doubloon gold highlights.',
         imgW: 1024,
         imgH: 564,
-        felt: DEFAULT_FELT,
-        arena: DEFAULT_ARENA,
-        heldTray: DEFAULT_HELD_TRAY,
-        rollPlate: DEFAULT_ROLL_PLATE,
+        // An older render with its own framing: a wider felt and trays further out.
+        felt: { x: 0.3365, y: 0.2185, w: 0.3465, h: 0.5288 },
+        arena: { x: 0.22975, y: 0.2185, w: 0.56, h: 0.5288 },
+        heldTray: { x: 0.2428, y: 0.255, w: 0.0461, h: 0.4505 },
+        rollsTray: { x: 0.7306, y: 0.255, w: 0.0461, h: 0.4505 },
+        rollPlate: { x: 0.3588, y: 0.7945, w: 0.2954, h: 0.143 },
+        titlePlate: { x: 0.353, y: 0.044, w: 0.291, h: 0.142 },
         unit: DEFAULT_BOARD_UNIT,
+        feltVignette: 0.3,
         diceColors: [
             { name: 'Weathered Bone', hex: '#DCC9A0' },
             { name: 'Jolly Roger', hex: '#1A1A1A' },
@@ -482,7 +543,9 @@ export const BOARDS: BoardDefinition[] = [
         felt: DEFAULT_FELT,
         arena: DEFAULT_ARENA,
         heldTray: DEFAULT_HELD_TRAY,
+        rollsTray: DEFAULT_ROLLS_TRAY,
         rollPlate: DEFAULT_ROLL_PLATE,
+        titlePlate: DEFAULT_TITLE_PLATE,
         unit: DEFAULT_BOARD_UNIT,
         // Cyan leads: the indigo that used to be first is the same value as the nebula
         // behind it, so seat 1's dice all but disappeared. The rest are the nebula's own
@@ -503,6 +566,8 @@ export const BOARDS: BoardDefinition[] = [
             // letting the player's colour actually show.
             roughness: 0.18,
             metalness: 0.45,
+            // The nebula is dark and busy; a stronger shadow sits the dice on it.
+            shadowOpacity: 0.55,
         },
         theme: {
             text: '#4DEEEA',
@@ -542,6 +607,16 @@ export function heldSlotCentres(board: BoardDefinition, count: number): Array<{ 
     return Array.from({ length: count }, (_, i) => ({
         x: x + w / 2,
         y: y + ((i + 0.5) * h) / count,
+    }));
+}
+
+/** A tray split into `count` equal rows, one rect per slot, in image fractions. */
+export function traySlots(tray: FracRect, count: number): FracRect[] {
+    return Array.from({ length: count }, (_, i) => ({
+        x: tray.x,
+        y: tray.y + (i * tray.h) / count,
+        w: tray.w,
+        h: tray.h / count,
     }));
 }
 

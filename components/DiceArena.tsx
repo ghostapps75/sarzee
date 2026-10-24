@@ -84,6 +84,9 @@ const CAMERA_Y = REST_Y + CAMERA_DISTANCE;
 /** Keeps a die fully on the felt rather than half over the wooden edge. */
 const EDGE_MARGIN = DIE_HALF * 1.25;
 
+/** Contact shadow strength, unless the board asks for more (see DiceSkin.shadowOpacity). */
+const DEFAULT_SHADOW_OPACITY = 0.3;
+
 /**
  * How far the key light is tilted from vertical, as horizontal distance over height.
  *
@@ -234,6 +237,7 @@ function DiceLayer({
     const tmpA = useMemo(() => new THREE.Vector3(), []);
     const tmpB = useMemo(() => new THREE.Vector3(), []);
     const tmpQ = useMemo(() => new THREE.Quaternion(), []);
+    const shadowOpacity = getBoard(boardId).diceSkin.shadowOpacity ?? DEFAULT_SHADOW_OPACITY;
 
     // The camera never moves. It used to be shaken on impact and for celebrations, but the
     // board is a static image behind this canvas, so a camera shake moved the dice against
@@ -354,7 +358,7 @@ function DiceLayer({
         <>
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow raycast={() => null}>
                 <planeGeometry args={[arenaWidth, arenaHeight]} />
-                <shadowMaterial transparent opacity={0.3} />
+                <shadowMaterial transparent opacity={shadowOpacity} />
             </mesh>
 
             {state.positions.map((_, i) => (
