@@ -47,3 +47,11 @@ body {
 body {
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Used on the setup panel, rules drawer and stats dashboard. It was written for the
+   tailwind-scrollbar plugin, which isn't installed, so it did nothing; this is the
+   plain-CSS version: a thin, faint scrollbar that sits quietly on the dark glass. */
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}

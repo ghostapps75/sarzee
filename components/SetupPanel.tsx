@@ -135,14 +135,19 @@ export default function SetupPanel({
             </p>
           </div>
 
-          {/* Setup Steps content - scrollable internally */}
-          <div className="flex-1 overflow-y-auto pr-1 select-none scrollbar-thin">
+          {/* Setup Steps content - scrollable internally. Vertical only: overflow-y-auto alone
+              makes overflow-x auto too, so Launch Arena's hover scale, reaching past the edge,
+              flashed a scrollbar that shifted it off the pointer. -m-2 p-2 gives that growth
+              room to land in on every side without moving the content. */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden -m-2 p-2 select-none scrollbar-thin">
             {step === 'BOARD' && (
               <div className="animate-in fade-in-50 slide-in-from-bottom-5 duration-300">
                 <h2 className="text-lg md:text-xl font-bold text-white text-center mb-6 uppercase tracking-wider">
                   Select Tabletop Arena
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto p-1">
+                {/* px-3 covers a card's hover:scale-[1.02] (up to ~7px a side on a full-width
+                    card) so it stays inside the padding box instead of adding a scrollbar. */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto overflow-x-hidden px-3 py-1 scrollbar-thin">
                   {BOARDS.map((board) => {
                     const isActive = board.id === selectedBoard;
                     return (
@@ -223,7 +228,7 @@ export default function SetupPanel({
                 <h2 className="text-lg md:text-xl font-bold text-white text-center mb-6 uppercase tracking-wider">
                   Configure Players & Personalities
                 </h2>
-                <div className="flex flex-col gap-5 mx-auto mb-6 p-1 max-h-[46vh] overflow-y-auto scrollbar-thin">
+                <div className="flex flex-col gap-5 mx-auto mb-6 p-1 max-h-[46vh] overflow-y-auto overflow-x-hidden scrollbar-thin">
                   {customNames.map((name, idx) => {
                     const pType = playerTypes[idx] || 'HUMAN';
                     const pColor = playerDiceColors[idx] || '#FFFFFF';
@@ -266,8 +271,9 @@ export default function SetupPanel({
                           />
                         </div>
 
-                        {/* Player Type Selector (Tabs) */}
-                        <div className="flex bg-black/60 rounded-xl p-1 border border-white/5 w-full md:w-auto">
+                        {/* Player Type Selector (Tabs). The four tabs don't fit one line on a
+                            phone, so they wrap rather than run off the card. */}
+                        <div className="flex flex-wrap bg-black/60 rounded-xl p-1 border border-white/5 w-full md:w-auto">
                           {(['HUMAN', 'SAFE_SAM', 'RISK_TAKING_ROSIE', 'BALANCED_BOBBY'] as const).map((t) => {
                             const isSel = pType === t;
                             let label = 'Player';
