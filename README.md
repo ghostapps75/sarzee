@@ -192,6 +192,7 @@ Two things worth knowing:
 | `npm test` | rules and dice-simulation tests |
 | `npm run opt:textures` | downsize/re-encode new or changed art in `public/` (`-- --dry`, `-- --force`) |
 | `npm run opt:audio` | encode and level-match sounds (`-- --dry`, `-- --force`) |
+| `npm run gen:chime` | re-synthesise the turn chime into `public/sounds/chime.mp3`; run `opt:audio` after it |
 | `npm run gen:icons` | redraw the favicon, home-screen and manifest icons from the die mark |
 | `npm run gen:card` | re-photograph the link-preview card from a built `out/` (`-- --board <id>`, `-- --rolls <n>`, `-- --dice <name>`) |
 
