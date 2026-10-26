@@ -125,6 +125,82 @@
     color: var(--ink);
 }
 
+/*
+ * Undo, in the corner while the last score can still be taken back. Printed in the
+ * binding's red, like a correction stamp, so it reads as part of the pad.
+ */
+.undo {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    overflow: hidden;
+    padding: 0.3em 0.75em 0.34em 0.55em;
+    border: 1.5px solid var(--binding);
+    border-radius: 5px;
+    background-color: rgba(143, 42, 32, 0.07);
+    color: var(--binding);
+    font-size: clamp(12px, calc(var(--u) * 0.34), 16px);
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    line-height: 1;
+    text-transform: uppercase;
+    cursor: pointer;
+    animation: appear 200ms ease-out;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+
+.undo:hover {
+    background-color: var(--binding);
+    color: var(--paper);
+}
+
+.undo:focus-visible {
+    outline: 2px solid var(--pencil);
+    outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+    .undo {
+        min-height: 30px;
+    }
+}
+
+.undoIcon {
+    flex-shrink: 0;
+    width: 1.15em;
+    height: 1.15em;
+}
+
+/* How long until the CPU playing next rolls, and the offer goes with it. */
+.undoTimer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background-color: currentColor;
+    opacity: 0.6;
+    transform-origin: left;
+    animation: drain linear forwards;
+}
+
+@keyframes appear {
+    from {
+        opacity: 0;
+        transform: translateY(-3px);
+    }
+}
+
+@keyframes drain {
+    from {
+        transform: scaleX(1);
+    }
+    to {
+        transform: scaleX(0);
+    }
+}
+
 .player {
     container-type: inline-size;
     justify-content: center;
@@ -340,6 +416,22 @@
     border-radius: 3px;
     background: rgba(255, 214, 40, 0.7);
     animation: breathe 0.9s ease-in-out infinite;
+}
+
+/* The box Undo would clear: ringed while the offer stands, filled while Undo is pointed at. */
+.score[data-undoable]::after {
+    content: '';
+    position: absolute;
+    inset: 4px 6px;
+    border: 1.5px dashed rgba(143, 42, 32, 0.55);
+    border-radius: 8px;
+    pointer-events: none;
+    transition: background-color 120ms ease;
+}
+
+.pad:has(.undo:hover, .undo:focus-visible) .score[data-undoable]::after {
+    border-style: solid;
+    background-color: rgba(143, 42, 32, 0.1);
 }
 
 @keyframes halo {

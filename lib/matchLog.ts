@@ -83,6 +83,21 @@ export function appendMatchLog(input: {
     }
 }
 
+/**
+ * Takes one record back out. A game that ends on a human's score is logged straight away,
+ * because nothing guarantees the page is still open later; if that last score is then
+ * undone, the game is not over after all and its record has to go with it.
+ */
+export function removeMatchLog(id: string) {
+    try {
+        const logs = readMatchLogs();
+        const kept = logs.filter((log) => log.id !== id);
+        if (kept.length !== logs.length) localStorage.setItem(STORAGE_KEY, JSON.stringify(kept));
+    } catch (err) {
+        console.error('Failed to remove match statistic:', err);
+    }
+}
+
 export function clearMatchLogs() {
     try {
         localStorage.removeItem(STORAGE_KEY);

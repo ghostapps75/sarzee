@@ -44,6 +44,16 @@ export class SarzeeEngine {
         return JSON.parse(JSON.stringify(this.state));
     }
 
+    /**
+     * Puts the engine back to a state taken earlier with `getGameState`. This is how a
+     * score is undone: restoring the snapshot from before the commit brings back the
+     * box, the bonuses, the turn counter and game over exactly, where reversing the
+     * arithmetic would have to know every rule `commitScore` applies.
+     */
+    public restoreState(state: GameState) {
+        this.state = JSON.parse(JSON.stringify(state));
+    }
+
     public toggleHold(index: number) {
         // Holding is only meaningful between rolls: there is nothing to keep before the
         // first roll, and after the third the only move left is to pick a category.

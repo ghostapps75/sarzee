@@ -63,6 +63,7 @@ export function useCpuTurn(game: SarzeeGame) {
         syncStates,
         setPotentialScores,
         setHighlightedCategory,
+        undoOffer,
     } = game;
 
     useEffect(() => {
@@ -97,10 +98,13 @@ export function useCpuTurn(game: SarzeeGame) {
             }, ms);
         };
 
-        // Opening roll of the turn.
+        // Opening roll of the turn. Straight after a human scores, it waits out the undo
+        // grace period instead: this roll is what closes the window, so rolling on the
+        // usual beat would take the undo away almost as soon as it appeared.
         if (gameState.rollsLeft === 3) {
             setMessage(`${name} is planning a ${playStyle(personality)} opening roll...`);
-            after(BEAT.firstRoll, roll);
+            const grace = undoOffer?.graceUntil ? undoOffer.graceUntil - Date.now() : 0;
+            after(Math.max(BEAT.firstRoll, grace), roll);
             return;
         }
 
@@ -173,9 +177,12 @@ export function useCpuTurn(game: SarzeeGame) {
         syncStates,
         setPotentialScores,
         setHighlightedCategory,
+        undoOffer,
     ]);
 
-    // Cancel any pending beat when the turn changes or the component goes away.
+    // Cancel any pending beat when the turn changes or the component goes away. An undo
+    // during the grace period lands here too: it hands the turn back to the human, so the
+    // CPU's held opening roll is cancelled and `busy` released before it can fire.
     useEffect(
         () => () => {
             if (timer.current) {

@@ -172,6 +172,141 @@ async function runTests() {
     }
     console.log("  PASS");
 
+    // Test 9: restoring the snapshot taken before a commit undoes everything it changed
+    console.log("Test 9: restoreState undoes a commit");
+    {
+        // The turn comes back exactly: dice, holds, rolls left, turn counter.
+        const e = new SarzeeEngine();
+        e.rollDice([2, 2, 5, 3, 2]);
+        e.toggleHold(0);
+        e.toggleHold(1);
+        e.rollDice([2, 2, 6, 4, 2]);
+        const before = e.getGameState();
+
+        e.commitScore(ScoreCategory.Twos);
+        assert.strictEqual(e.getGameState().currentTurn, 2);
+
+        e.restoreState(before);
+        let s = e.getGameState();
+        assert.deepStrictEqual(s, before);
+        assert.strictEqual(s.scorecard[ScoreCategory.Twos], null);
+        assert.strictEqual(s.rollsLeft, 1);
+        assert.deepStrictEqual(s.heldDice, [true, true, false, false, false]);
+        assert.strictEqual(s.totalScore, 0);
+
+        // The turn carries on from there: the last roll is still available, and the box
+        // the player meant can be scored instead.
+        e.rollDice([2, 2, 2, 2, 2]);
+        e.commitScore(ScoreCategory.Yahtzee);
+        s = e.getGameState();
+        assert.strictEqual(s.scorecard[ScoreCategory.Twos], null);
+        assert.strictEqual(s.scorecard[ScoreCategory.Yahtzee], 50);
+        assert.strictEqual(s.currentTurn, 2);
+
+        // The engine keeps its own copy, so changing the snapshot afterwards does nothing.
+        e.restoreState(before);
+        before.totalScore = 1000;
+        before.scorecard[ScoreCategory.Chance] = 99;
+        assert.strictEqual(e.getGameState().totalScore, 0);
+        assert.strictEqual(e.getGameState().scorecard[ScoreCategory.Chance], null);
+    }
+    {
+        // A commit that awarded the upper bonus takes the bonus back with it.
+        const e = new SarzeeEngine();
+        const score = (dice: DieValue[], cat: ScoreCategory) => {
+            e.rollDice(dice);
+            e.commitScore(cat);
+        };
+        score([1, 1, 1, 2, 3], ScoreCategory.Ones); // 3
+        score([2, 2, 2, 1, 3], ScoreCategory.Twos); // 6
+        score([3, 3, 3, 1, 2], ScoreCategory.Threes); // 9
+        score([4, 4, 4, 1, 2], ScoreCategory.Fours); // 12
+        score([5, 5, 5, 1, 2], ScoreCategory.Fives); // 15, running 45
+
+        e.rollDice([6, 6, 6, 1, 2]);
+        const before = e.getGameState();
+        e.commitScore(ScoreCategory.Sixes); // 18, running 63
+        assert.strictEqual(e.getGameState().upperBonus, 35);
+
+        e.restoreState(before);
+        const s = e.getGameState();
+        assert.strictEqual(s.upperBonus, 0, 'the bonus goes with the score that earned it');
+        assert.strictEqual(s.totalScore, 45);
+        assert.strictEqual(s.scorecard[ScoreCategory.Sixes], null);
+
+        // Scoring the same dice elsewhere leaves the upper section short of 63.
+        e.commitScore(ScoreCategory.ThreeOfAKind); // 21
+        assert.strictEqual(e.getGameState().upperBonus, 0);
+        assert.strictEqual(e.getGameState().totalScore, 45 + 21);
+    }
+    {
+        // A bonus Sarzee's +100 comes back off too.
+        const e = new SarzeeEngine();
+        e.rollDice([5, 5, 5, 5, 5]);
+        e.commitScore(ScoreCategory.Yahtzee); // 50
+
+        e.rollDice([6, 6, 6, 6, 6]);
+        const before = e.getGameState();
+        e.commitScore(ScoreCategory.Sixes);
+        assert.strictEqual(e.getGameState().yahtzeeBonus, 100);
+
+        e.restoreState(before);
+        const s = e.getGameState();
+        assert.strictEqual(s.yahtzeeBonus, 0);
+        assert.strictEqual(s.totalScore, 50);
+    }
+    {
+        // So do a joker score and the bonus that came with it.
+        const e = new SarzeeEngine();
+        e.rollDice([4, 4, 4, 4, 4]);
+        e.commitScore(ScoreCategory.Yahtzee); // 50
+        e.rollDice([4, 4, 4, 4, 4]);
+        e.commitScore(ScoreCategory.Fours); // 20 + 100 bonus
+
+        e.rollDice([4, 4, 4, 4, 4]);
+        const before = e.getGameState();
+        e.commitScore(ScoreCategory.LargeStraight); // joker 40 + 100 bonus
+        assert.strictEqual(e.getGameState().totalScore, 50 + 120 + 140);
+
+        e.restoreState(before);
+        const s = e.getGameState();
+        assert.strictEqual(s.scorecard[ScoreCategory.LargeStraight], null);
+        assert.strictEqual(s.yahtzeeBonus, 100);
+        assert.strictEqual(s.totalScore, 50 + 120);
+        assert.strictEqual(e.calculatePotentialScore(ScoreCategory.LargeStraight), 40, 'the joker is still live');
+    }
+    {
+        // Undoing the last box of the game takes the game back out of game over.
+        const e = new SarzeeEngine();
+        const all = Object.values(ScoreCategory) as ScoreCategory[];
+        for (const cat of all.slice(0, -1)) {
+            e.rollDice([1, 2, 3, 4, 6]);
+            e.commitScore(cat);
+        }
+        const last = all[all.length - 1];
+
+        e.rollDice([6, 6, 5, 5, 4]);
+        const before = e.getGameState();
+        assert.strictEqual(before.currentTurn, 13);
+        e.commitScore(last);
+        assert.strictEqual(e.getGameState().isGameOver, true);
+
+        e.restoreState(before);
+        let s = e.getGameState();
+        assert.strictEqual(s.isGameOver, false, 'no longer over');
+        assert.strictEqual(s.scorecard[last], null);
+        assert.strictEqual(s.currentTurn, 13);
+        assert.strictEqual(s.rollsLeft, 2);
+
+        // The engine plays on: one more roll, then the box can be filled for real.
+        e.rollDice([6, 6, 6, 6, 6]);
+        e.commitScore(last);
+        s = e.getGameState();
+        assert.strictEqual(s.isGameOver, true);
+        assert.strictEqual(s.scorecard[last], 30);
+    }
+    console.log("  PASS");
+
     console.log("ALL TESTS PASSED");
 }
 

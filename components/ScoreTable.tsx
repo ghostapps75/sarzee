@@ -4,6 +4,7 @@
 import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { ScoreCategory } from '@/lib/types';
 import { OptionTier, rankOptions } from '@/lib/scoreAdvice';
+import type { UndoOffer } from '@/lib/useSarzeeGame';
 import styles from './ScoreTable.module.css';
 
 type Card = Record<ScoreCategory, number | null>;
@@ -23,6 +24,9 @@ interface ScoreTableProps {
     onSelectCategory: (cat: ScoreCategory) => void;
     mustPick: boolean;
     highlightedCategory?: ScoreCategory | null;
+    /** The last human score while it can still be taken back; the header offers Undo. */
+    undo?: UndoOffer | null;
+    onUndo?: () => void;
     className?: string;
     /** The pad element itself — the game-over export captures it. */
     ref?: React.Ref<HTMLDivElement>;
@@ -56,6 +60,8 @@ const LOWER: Line[] = [
     { cat: ScoreCategory.Yahtzee, label: 'Sarzee', hint: '50' },
     { cat: ScoreCategory.Chance, label: 'Chance', hint: 'Sum' },
 ];
+
+const LABELS = Object.fromEntries([...UPPER, ...LOWER].map((l) => [l.cat, l.label])) as Record<ScoreCategory, string>;
 
 /**
  * Row heights, top to bottom. Each row takes a share of the card's height so the pad
@@ -104,6 +110,22 @@ const PIP_SPOTS: Record<Pips, Array<[number, number]>> = {
     6: [[4.5, 4], [11.5, 4], [4.5, 8], [11.5, 8], [4.5, 12], [11.5, 12]],
 };
 
+/** A curved arrow turning back on itself, for Undo. */
+function UndoArrow() {
+    return (
+        <svg viewBox="0 0 16 16" className={styles.undoIcon} aria-hidden="true">
+            <path
+                d="M5.5 3.5 2.5 6.5l3 3M3 6.5h6.25a3.75 3.75 0 0 1 0 7.5H7"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+        </svg>
+    );
+}
+
 /** The printed die beside each upper-section label. Vector, so it stays sharp. */
 function PipDie({ value }: { value: Pips }) {
     return (
@@ -137,6 +159,8 @@ export default function ScoreTable({
     onSelectCategory,
     mustPick,
     highlightedCategory = null,
+    undo = null,
+    onUndo,
     className = '',
     ref,
 }: ScoreTableProps) {
@@ -220,6 +244,7 @@ export default function ScoreTable({
                 data-tier={tier}
                 data-zero={(taken && score === 0) || undefined}
                 data-writing={(isActive && highlightedCategory === cat) || undefined}
+                data-undoable={(undo?.player === p && undo.category === cat) || undefined}
                 aria-label={`${nameOf(p)}, ${label}: ${
                     taken ? `scored ${score}` : live ? `score ${potential}${tier === 'best' ? ', best option' : ''}` : 'open'
                 }`}
@@ -313,7 +338,31 @@ export default function ScoreTable({
                 }}
             >
                 <div className={cx(styles.cell, styles.head, styles.corner)}>
-                    <span className={styles.logo}>Sarzee</span>
+                    {/* While the last score can be taken back, Undo takes the logo's place: it
+                        is the one spot in the header that has the room at every width. */}
+                    {undo && onUndo ? (
+                        <button
+                            key={undo.id}
+                            type="button"
+                            onClick={onUndo}
+                            className={styles.undo}
+                            aria-label={`Undo ${nameOf(undo.player)}'s ${LABELS[undo.category]}`}
+                            title={`Take back ${LABELS[undo.category]} and replay the turn`}
+                        >
+                            <UndoArrow />
+                            <span>Undo</span>
+                            {/* A CPU plays next and rolls when this runs out, which ends the offer. */}
+                            {undo.graceMs !== null && (
+                                <span
+                                    className={styles.undoTimer}
+                                    style={{ animationDuration: `${undo.graceMs}ms` }}
+                                    aria-hidden="true"
+                                />
+                            )}
+                        </button>
+                    ) : (
+                        <span className={styles.logo}>Sarzee</span>
+                    )}
                 </div>
                 {shown.map((p, k) => (
                     <div

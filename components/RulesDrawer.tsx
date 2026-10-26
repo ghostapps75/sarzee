@@ -89,6 +89,7 @@ export default function RulesDrawer({ isOpen, onClose, theme: themeColors }: Rul
                 <div>
                   <h4 className="font-semibold text-white">Commit Score</h4>
                   <p className="text-xs text-gray-400">Select any open category on your scorecard. You must commit a score (or scratch as 0) by your 3rd roll.</p>
+                  <p className="text-xs text-gray-400 mt-1">Tapped the wrong box? Press <strong className="text-white">Undo</strong> at the top of the score pad to take it back and finish the turn. It lasts until the next roll.</p>
                 </div>
               </div>
             </div>

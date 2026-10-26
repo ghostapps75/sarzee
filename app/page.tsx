@@ -79,6 +79,8 @@ export default function Page() {
         showNancyCelebration,
         setShowNancyCelebration,
         highlightedCategory,
+        undoOffer,
+        undoLastScore,
     } = game;
 
     // Dev-only keyboard shortcuts.
@@ -189,6 +191,8 @@ export default function Page() {
         onSelectCategory: game.selectCategory,
         mustPick: gameState.rollsLeft === 0,
         highlightedCategory,
+        undo: undoOffer,
+        onUndo: undoLastScore,
     };
 
     const stage = (
@@ -299,6 +303,7 @@ export default function Page() {
                     compact={compact}
                     onNewGame={game.resetAll}
                     onDownload={handleDownload}
+                    onUndo={undoOffer ? undoLastScore : undefined}
                 />
             )}
 
@@ -317,6 +322,7 @@ export default function Page() {
                         ref={exportRef}
                         canSelectCategory={false}
                         highlightedCategory={null}
+                        undo={null}
                         className="h-full"
                     />
                 </div>

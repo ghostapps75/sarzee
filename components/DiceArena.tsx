@@ -23,6 +23,11 @@ export interface DiceArenaHandle {
     rollToResult: (values: number[], opts?: { chaosMs?: number }) => void;
     /** Lines the dice up at rest for a fresh turn. */
     reset: () => void;
+    /**
+     * Lines the dice up at rest showing these faces. This is how an undone score puts its
+     * turn back on the table; any held dice then glide to the tray from `heldDice`.
+     */
+    showDice: (values: number[]) => void;
     triggerCelebrationShake: (intensity?: number) => void;
 }
 
@@ -667,21 +672,28 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
                 s.playback = { sim, map: thrown, t: 0, impacted: false };
             };
 
+            const reset = () => {
+                s.playback = null;
+                s.heldSlots.clear();
+                s.prevHeld = [false, false, false, false, false];
+                for (let i = 0; i < 5; i++) {
+                    s.positions[i].set((i - 2) * restSpacing, REST_Y, 0);
+                    s.quats[i].identity();
+                    s.faceRot[i].identity();
+                    s.heldAnim[i].moving = false;
+                    s.heldAnim[i].turning = false;
+                    s.preHold[i].set(0, REST_Y, 0);
+                }
+                s.lastEmitted = [1, 1, 1, 1, 1];
+            };
+
             return {
                 rollToResult,
-                reset: () => {
-                    s.playback = null;
-                    s.heldSlots.clear();
-                    s.prevHeld = [false, false, false, false, false];
-                    for (let i = 0; i < 5; i++) {
-                        s.positions[i].set((i - 2) * restSpacing, REST_Y, 0);
-                        s.quats[i].identity();
-                        s.faceRot[i].identity();
-                        s.heldAnim[i].moving = false;
-                        s.heldAnim[i].turning = false;
-                        s.preHold[i].set(0, REST_Y, 0);
-                    }
-                    s.lastEmitted = [1, 1, 1, 1, 1];
+                reset,
+                showDice: (values: number[]) => {
+                    reset();
+                    for (let i = 0; i < 5; i++) setFace(i, clampDie(values[i] ?? 1));
+                    s.lastEmitted = values.map(clampDie);
                 },
                 triggerCelebrationShake: (intensity = 1.2) => {
                     onCelebrationShake?.(intensity);

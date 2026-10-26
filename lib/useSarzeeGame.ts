@@ -6,7 +6,7 @@ import { SarzeeEngine } from './SarzeeEngine';
 import { DieValue, GamePhase, GameState, ScoreCategory } from './types';
 import { CpuPersonality } from './CpuAgent';
 import { DEFAULT_BOARD_ID, getBoard } from './boards';
-import { appendMatchLog } from './matchLog';
+import { appendMatchLog, removeMatchLog } from './matchLog';
 import { useGameSounds } from './useGameSounds';
 
 export type PlayerType = 'HUMAN' | CpuPersonality;
@@ -14,11 +14,41 @@ export type PlayerType = 'HUMAN' | CpuPersonality;
 export interface DiceArenaLike {
     rollToResult: (values: number[], opts?: { chaosMs?: number }) => void;
     reset: () => void;
+    showDice: (values: number[]) => void;
     triggerCelebrationShake: (intensity?: number) => void;
 }
 
 /** If the arena never reports back (backgrounded tab, lost WebGL context), unstick the UI. */
 const ROLL_WATCHDOG_MS = 8000;
+
+/**
+ * How long a CPU holds its opening roll after a human scores. The roll is what closes
+ * the undo window, and a CPU would otherwise roll before a mis-tap had even registered.
+ */
+export const UNDO_GRACE_MS = 4000;
+
+/** A human's last score, offered back until the next roll. What the pad draws from. */
+export interface UndoOffer {
+    /** New for every commit, so a fresh offer restarts its countdown. */
+    id: number;
+    /** The seat that scored, which is the seat undo hands the turn back to. */
+    player: number;
+    category: ScoreCategory;
+    /**
+     * When a CPU plays next it waits until this time (ms since the epoch) to roll, and
+     * the offer ends then. Null when a human is next: the offer lasts until they roll.
+     */
+    graceUntil: number | null;
+    /** The length of that wait, for the countdown on the Undo button. */
+    graceMs: number | null;
+}
+
+interface UndoEntry extends UndoOffer {
+    /** The scoring player's engine the moment before the commit. Undo restores it whole. */
+    before: GameState;
+    /** The stats record written when the commit ended the game, so undo can take it back out. */
+    matchLogId: string | null;
+}
 
 const emptyPotentials = () => ({}) as Record<ScoreCategory, number>;
 
@@ -84,6 +114,19 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
     const nancyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    /**
+     * The score that can still be taken back. The ref is what `undoLastScore` trusts: a
+     * CPU rolls from a timer, and its roll has to shut the window before a click that
+     * lands in the same frame, ahead of any re-render. The state copy is for drawing.
+     */
+    const undoRef = useRef<UndoEntry | null>(null);
+    const undoSeq = useRef(0);
+    const [undoOffer, setUndoOffer] = useState<UndoOffer | null>(null);
+    const setUndo = useCallback((entry: UndoEntry | null) => {
+        undoRef.current = entry;
+        setUndoOffer(entry);
+    }, []);
+
     const gameState: GameState | null = allStates[activePlayer] ?? null;
 
     /** Re-read every engine. Cheap enough at 4 players and keeps one source of truth. */
@@ -122,11 +165,12 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         setNancysInGame(0);
         setHighlightedCategory(null);
         setIsRolling(false);
+        setUndo(null);
         clearTimers();
 
         arenaRef.current?.reset();
         setPhase('PLAYING');
-    }, [playerCount, selectedBoard, arenaRef, clearTimers]);
+    }, [playerCount, selectedBoard, arenaRef, clearTimers, setUndo]);
 
     const resetAll = useCallback(() => {
         clearTimers();
@@ -145,7 +189,8 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         setSarzeesInGame(0);
         setNancysInGame(0);
         setHighlightedCategory(null);
-    }, [clearTimers]);
+        setUndo(null);
+    }, [clearTimers, setUndo]);
 
     const toggleHold = useCallback(
         (idx: number) => {
@@ -192,6 +237,9 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
             return;
         }
 
+        // A roll by anyone ends the chance to take back the last score.
+        setUndo(null);
+
         const states = syncStates();
         const after = states[activePlayer];
         setPotentialScores(after.rollsLeft === 3 ? emptyPotentials() : computePotentialScores(engine, after));
@@ -202,7 +250,7 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         watchdog.current = setTimeout(() => setIsRolling(false), ROLL_WATCHDOG_MS);
 
         arena.rollToResult(decided, { chaosMs: 1200 });
-    }, [gameState, isRolling, activePlayer, arenaRef, syncStates, playSound]);
+    }, [gameState, isRolling, activePlayer, arenaRef, syncStates, playSound, setUndo]);
 
     /** Called by the arena once the dice have visually come to rest. */
     const handleTurnComplete = useCallback(
@@ -243,6 +291,9 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
             if (!gameState || isRolling || gameState.rollsLeft === 3) return;
 
             const engine = enginesRef.current[activePlayer];
+            // Undo restores this rather than reversing the arithmetic, so a bonus, a joker
+            // score or game over comes back exactly as it was.
+            const before = engine.getGameState();
             try {
                 engine.commitScore(category);
             } catch (e) {
@@ -260,16 +311,36 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
 
             // Everyone gets the same number of turns, so the game ends exactly when play
             // wraps back round to a player whose card is already full.
-            if (states[nextPlayer].isGameOver) {
+            const gameOver = states[nextPlayer].isGameOver;
+            let matchLogId: string | null = null;
+            if (gameOver) {
                 setPhase('GAME_OVER');
-                appendMatchLog({
-                    boardName: getBoard(selectedBoard).name,
-                    names: customNames,
-                    types: playerTypes,
-                    totals: states.map((s) => s.totalScore),
-                    sarzeeCount: sarzeesInGame,
-                    nancyCount: nancysInGame,
+                matchLogId =
+                    appendMatchLog({
+                        boardName: getBoard(selectedBoard).name,
+                        names: customNames,
+                        types: playerTypes,
+                        totals: states.map((s) => s.totalScore),
+                        sarzeeCount: sarzeesInGame,
+                        nancyCount: nancysInGame,
+                    })?.id ?? null;
+            }
+
+            // Only a human's score can be taken back; a CPU's choice is never a slip.
+            if (playerTypes[activePlayer] === 'HUMAN') {
+                const graceMs = !gameOver && playerTypes[nextPlayer] !== 'HUMAN' ? UNDO_GRACE_MS : null;
+                undoSeq.current += 1;
+                setUndo({
+                    id: undoSeq.current,
+                    player: activePlayer,
+                    category,
+                    graceMs,
+                    graceUntil: graceMs === null ? null : Date.now() + graceMs,
+                    before,
+                    matchLogId,
                 });
+            } else {
+                setUndo(null);
             }
         },
         [
@@ -285,8 +356,32 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
             sarzeesInGame,
             nancysInGame,
             playSound,
+            setUndo,
         ]
     );
+
+    /**
+     * Takes back the last human score: that player's engine goes back to the moment before
+     * the commit, and the turn returns to them with the same dice, holds and rolls left.
+     */
+    const undoLastScore = useCallback(() => {
+        const entry = undoRef.current;
+        if (!entry) return;
+        const engine = enginesRef.current[entry.player];
+        if (!engine) return;
+
+        engine.restoreState(entry.before);
+        // The game this record described is no longer over.
+        if (entry.matchLogId) removeMatchLog(entry.matchLogId);
+        setUndo(null);
+
+        const states = syncStates();
+        setActivePlayer(entry.player);
+        setPotentialScores(computePotentialScores(engine, states[entry.player]));
+        setHighlightedCategory(null);
+        setPhase('PLAYING');
+        arenaRef.current?.showDice(entry.before.diceValues);
+    }, [arenaRef, syncStates, setUndo]);
 
     // A backgrounded tab freezes requestAnimationFrame, so a roll started just before
     // switching away never reports completion. Re-check when the player comes back.
@@ -347,6 +442,8 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         selectCategory,
         handleTurnComplete,
         syncStates,
+        undoOffer,
+        undoLastScore,
 
         // celebrations
         showCelebration,
