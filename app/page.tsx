@@ -94,6 +94,7 @@ export default function Page() {
             const k = e.key.toLowerCase();
             if (k === 'l') setDebugRects((s) => !s);
             if (k === 'v') setShowDieNumbers((s) => !s);
+            // Fire a celebration on demand, whatever the dice show.
             if (k === 'c') {
                 setShowCelebration(false);
                 requestAnimationFrame(() => setShowCelebration(true));
@@ -166,6 +167,7 @@ export default function Page() {
 
     if (!gameState || !viewport.ready) return <div className="fixed inset-0 bg-black" />;
 
+    const celebrating = showCelebration || showNancyCelebration;
     const stacked = viewport.mode === 'stack';
     /** Width of the scorecard rail covering the right of the board, or 0 when stacked. */
     const railInset = stacked ? 0 : viewport.railWidth;
@@ -219,6 +221,15 @@ export default function Page() {
                 playerTypes[activePlayer] !== 'HUMAN'
             }
             rollsLeft={gameState.isGameOver ? 0 : gameState.rollsLeft}
+            feltOverlay={
+                showCelebration ? (
+                    <SarzeeCelebration
+                        arenaRef={arenaRef}
+                        theme={board.theme}
+                        onDismiss={() => setShowCelebration(false)}
+                    />
+                ) : undefined
+            }
             hud={(titlePlate) => (
                 <GameHud
                     playerName={customNames[activePlayer] || `Player ${activePlayer + 1}`}
@@ -235,7 +246,7 @@ export default function Page() {
                 />
             )}
         >
-            {cpu.isThinking && cpu.message && (
+            {cpu.isThinking && cpu.message && !celebrating && (
                 <div
                     className={`absolute -translate-x-1/2 z-40 pointer-events-none animate-in fade-in-0 duration-300 max-w-[92%] ${
                         compact ? 'bottom-2' : ''
@@ -258,11 +269,6 @@ export default function Page() {
                 </div>
             )}
 
-            {showCelebration && (
-                <div className="absolute inset-y-0 left-0 z-50 flex items-center justify-center" style={{ right: railInset }}>
-                    <SarzeeCelebration onDismiss={() => setShowCelebration(false)} />
-                </div>
-            )}
             {showNancyCelebration && (
                 <div className="absolute inset-y-0 left-0 z-50 flex items-center justify-center" style={{ right: railInset }}>
                     <NancyCelebration onDismiss={() => setShowNancyCelebration(false)} />
@@ -330,7 +336,7 @@ export default function Page() {
 
             {isDev && (
                 <div className="absolute bottom-1 left-1 z-[999] font-mono text-[9px] text-white/40 pointer-events-none">
-                    {viewport.width}×{viewport.height} · {viewport.mode} · L=rects V=values C=celebrate
+                    {viewport.width}×{viewport.height} · {viewport.mode} · L=rects V=values C=sarzee
                 </div>
             )}
         </div>
