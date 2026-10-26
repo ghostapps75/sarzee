@@ -21,6 +21,7 @@ lib/
   useSarzeeGame.ts     Game state and the actions that change it.
   sounds.ts            Every sound: file, volume, preload and encoding profile.
   useGameSounds.ts     The only thing in the app that touches an Audio element.
+  useCelebrationClock.ts  Times a celebration to its sound; handles skip and reduced motion.
   useCpuTurn.ts        Drives CPU seats through the same actions a human uses.
   diceSimulation.ts    Headless physics roll (see below).
   dieFaces.ts          Face/axis mapping and the pip relabelling.
@@ -28,6 +29,8 @@ components/
   BoardStage.tsx       Paints the board and positions everything on it.
   DiceArena.tsx        The 3D felt: owns the roll, renders the dice.
   ScoreTable.tsx       The scorecard: a paper score pad in real DOM, every size.
+  SarzeeCelebration.tsx, NancyCelebration.tsx
+                       The two celebrations, drawn over the felt.
 ```
 
 ### Layout: board coordinates, not viewport percentages
@@ -182,6 +185,23 @@ Two things worth knowing:
   cover. The pipeline drops ID3 tags, which is where most of the savings came from.
 - **Provenance goes with the tags.** If a clip's origin matters to you, note it somewhere
   else — the encoder removes artist and title along with the artwork.
+
+### Celebrations
+
+A Sarzee (five of a kind) and a Nancy (an opening roll of five different numbers that isn't
+a straight) each get a short animation over the table, drawn entirely in code. In the
+Sarzee the real dice take a bow: they lift, spin, slam down in a row, and go back to where
+they landed. In the Nancy they catch fire and hop into a dumpster, which rolls away once
+they have hopped back out showing what they rolled.
+
+Both run on `lib/useCelebrationClock.ts`, which times them to their cue. The animation
+starts at once; when the browser knows how long `sarzee.mp3` or `nancy.mp3` is, the held
+moment in the middle stretches or shrinks so the animation ends with the sound (four
+seconds if the length isn't known in time). Swap either file and the timing follows. A
+tap, click or key skips to the end, and with reduced motion only the title is shown.
+
+In the dev server, **C** fires the Sarzee and **N** the Nancy, whatever the dice show.
+**L** draws the layout rects and **V** prints each die's value over it.
 
 ## Scripts
 

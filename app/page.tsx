@@ -99,10 +99,14 @@ export default function Page() {
                 setShowCelebration(false);
                 requestAnimationFrame(() => setShowCelebration(true));
             }
+            if (k === 'n') {
+                setShowNancyCelebration(false);
+                requestAnimationFrame(() => setShowNancyCelebration(true));
+            }
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [isDev, setShowCelebration]);
+    }, [isDev, setShowCelebration, setShowNancyCelebration]);
 
     const handleDownload = useCallback(async () => {
         setExporting(true);
@@ -222,12 +226,19 @@ export default function Page() {
             }
             rollsLeft={gameState.isGameOver ? 0 : gameState.rollsLeft}
             feltOverlay={
-                showCelebration ? (
-                    <SarzeeCelebration
-                        arenaRef={arenaRef}
-                        theme={board.theme}
-                        onDismiss={() => setShowCelebration(false)}
-                    />
+                celebrating ? (
+                    <>
+                        {showCelebration && (
+                            <SarzeeCelebration
+                                arenaRef={arenaRef}
+                                theme={board.theme}
+                                onDismiss={() => setShowCelebration(false)}
+                            />
+                        )}
+                        {showNancyCelebration && (
+                            <NancyCelebration arenaRef={arenaRef} onDismiss={() => setShowNancyCelebration(false)} />
+                        )}
+                    </>
                 ) : undefined
             }
             hud={(titlePlate) => (
@@ -266,12 +277,6 @@ export default function Page() {
                         </span>
                         <span className="text-xs font-bold text-yellow-400 tracking-wide">{cpu.message}</span>
                     </div>
-                </div>
-            )}
-
-            {showNancyCelebration && (
-                <div className="absolute inset-y-0 left-0 z-50 flex items-center justify-center" style={{ right: railInset }}>
-                    <NancyCelebration onDismiss={() => setShowNancyCelebration(false)} />
                 </div>
             )}
         </BoardStage>
@@ -336,7 +341,7 @@ export default function Page() {
 
             {isDev && (
                 <div className="absolute bottom-1 left-1 z-[999] font-mono text-[9px] text-white/40 pointer-events-none">
-                    {viewport.width}×{viewport.height} · {viewport.mode} · L=rects V=values C=sarzee
+                    {viewport.width}×{viewport.height} · {viewport.mode} · L=rects V=values C=sarzee N=nancy
                 </div>
             )}
         </div>
