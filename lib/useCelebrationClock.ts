@@ -9,6 +9,8 @@ import { useGameSounds, whenSoundDuration } from './useGameSounds';
 export const FALLBACK_CUE_SECONDS = 4;
 /** A cue longer than this is treated as this long, so a stray long file can't stall a turn. */
 const MAX_CUE_SECONDS = 15;
+/** How late a cue may start (it is fetched on first use) and still have the run wait for it. */
+const LATE_START_ALLOWANCE = 2;
 /** The least time the finished picture is held before the wind-down starts. */
 const MIN_HOLD_SECONDS = 0.25;
 /** The most a short cue is allowed to hurry the choreography. */
@@ -109,8 +111,12 @@ export function useCelebrationClock({ cue, timing, onStart, onFrame, onFinish, o
             if (!audio || phase === 'outro' || phase === 'done') return;
             const d = audio.duration;
             if (!Number.isFinite(d) || d <= 0) return;
-            const left = Math.max(0, Math.min(MAX_CUE_SECONDS, d) - audio.currentTime);
-            endAt = elapsedNow() + left;
+            const length = Math.min(MAX_CUE_SECONDS, d);
+            // Playing, or still downloading and about to: end when it does. Refused (no
+            // autoplay) or paused: run for its length from the start, as if it had played.
+            const followed = audio.paused ? length : elapsedNow() + Math.max(0, length - audio.currentTime);
+            // A cue that stalls and never starts must not hold up the turn indefinitely.
+            endAt = Math.min(followed, length + LATE_START_ALLOWANCE);
         };
 
         const teardown = () => {
