@@ -15,7 +15,6 @@ export interface DiceArenaLike {
     rollToResult: (values: number[], opts?: { chaosMs?: number }) => void;
     reset: () => void;
     showDice: (values: number[]) => void;
-    triggerCelebrationShake: (intensity?: number) => void;
 }
 
 /** If the arena never reports back (backgrounded tab, lost WebGL context), unstick the UI. */
@@ -109,9 +108,12 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
     const [showCelebration, setShowCelebration] = useState(false);
     const [showNancyCelebration, setShowNancyCelebration] = useState(false);
     const [highlightedCategory, setHighlightedCategory] = useState<ScoreCategory | null>(null);
+    /**
+     * A celebration has the dice: nothing may roll, hold or score until it ends. The
+     * overlay already blocks the player; this also covers a CPU timer or a dev shortcut.
+     */
+    const celebrating = showCelebration || showNancyCelebration;
 
-    const celebrationTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const nancyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     /**
@@ -137,11 +139,9 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
     }, []);
 
     const clearTimers = useCallback(() => {
-        for (const ref of [celebrationTimeout, nancyTimeout, watchdog]) {
-            if (ref.current) {
-                clearTimeout(ref.current);
-                ref.current = null;
-            }
+        if (watchdog.current) {
+            clearTimeout(watchdog.current);
+            watchdog.current = null;
         }
     }, []);
 
@@ -165,6 +165,8 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         setNancysInGame(0);
         setHighlightedCategory(null);
         setIsRolling(false);
+        setShowCelebration(false);
+        setShowNancyCelebration(false);
         setUndo(null);
         clearTimers();
 
@@ -194,7 +196,7 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
 
     const toggleHold = useCallback(
         (idx: number) => {
-            if (!gameState || isRolling || gameState.rollsLeft === 3) return;
+            if (!gameState || isRolling || celebrating || gameState.rollsLeft === 3) return;
             const engine = enginesRef.current[activePlayer];
             const wasHeld = gameState.heldDice[idx];
             engine.toggleHold(idx);
@@ -203,11 +205,11 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
             if (states[activePlayer].heldDice[idx] !== wasHeld) playSound('hold');
             setPotentialScores(computePotentialScores(engine, states[activePlayer]));
         },
-        [gameState, isRolling, activePlayer, syncStates, playSound]
+        [gameState, isRolling, celebrating, activePlayer, syncStates, playSound]
     );
 
     const roll = useCallback(() => {
-        if (!gameState || isRolling) return;
+        if (!gameState || isRolling || celebrating) return;
         const arena = arenaRef.current;
         if (!arena) return;
 
@@ -250,7 +252,7 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         watchdog.current = setTimeout(() => setIsRolling(false), ROLL_WATCHDOG_MS);
 
         arena.rollToResult(decided, { chaosMs: 1200 });
-    }, [gameState, isRolling, activePlayer, arenaRef, syncStates, playSound, setUndo]);
+    }, [gameState, isRolling, celebrating, activePlayer, arenaRef, syncStates, playSound, setUndo]);
 
     /** Called by the arena once the dice have visually come to rest. */
     const handleTurnComplete = useCallback(
@@ -263,32 +265,25 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
 
             const vals = results.map((v) => normalizeDie(v));
 
+            // Raised in the same render that ends the roll, so a CPU waiting on `isRolling`
+            // sees the celebration before it takes its next step. The celebration keeps its
+            // own beat before it starts moving, and shakes the table itself on its big moment.
             if (vals.length === 5 && vals.every((v) => v === vals[0])) {
                 setSarzeesInGame((prev) => prev + 1);
-                if (celebrationTimeout.current) clearTimeout(celebrationTimeout.current);
-                setShowCelebration(false);
-                celebrationTimeout.current = setTimeout(() => {
-                    setShowCelebration(true);
-                    arenaRef.current?.triggerCelebrationShake(3.5);
-                    celebrationTimeout.current = null;
-                }, 1000);
+                setShowNancyCelebration(false);
+                setShowCelebration(true);
             } else if (gameState && isNancy(vals, gameState.rollsLeft)) {
                 setNancysInGame((prev) => prev + 1);
-                if (nancyTimeout.current) clearTimeout(nancyTimeout.current);
-                setShowNancyCelebration(false);
-                nancyTimeout.current = setTimeout(() => {
-                    setShowNancyCelebration(true);
-                    arenaRef.current?.triggerCelebrationShake(2.5);
-                    nancyTimeout.current = null;
-                }, 1000);
+                setShowCelebration(false);
+                setShowNancyCelebration(true);
             }
         },
-        [gameState, arenaRef]
+        [gameState]
     );
 
     const selectCategory = useCallback(
         (category: ScoreCategory) => {
-            if (!gameState || isRolling || gameState.rollsLeft === 3) return;
+            if (!gameState || isRolling || celebrating || gameState.rollsLeft === 3) return;
 
             const engine = enginesRef.current[activePlayer];
             // Undo restores this rather than reversing the arithmetic, so a bonus, a joker
@@ -346,6 +341,7 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         [
             gameState,
             isRolling,
+            celebrating,
             activePlayer,
             playerCount,
             arenaRef,

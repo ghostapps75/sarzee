@@ -32,19 +32,12 @@ const path = require('path');
 const sharp = require('sharp');
 
 /**
- * Each entry is a folder to sweep and the widest the images in it ever need to be.
- * Board art is drawn at up to ~1300 CSS px (so 1920 covers a high-DPI display); the
- * celebration art is much smaller on screen; the social thumbnail only ever
- * appears in a link preview.
+ * Each entry is a folder to sweep and the widest the images in it ever need to be, with
+ * `overrides` for single files that need a different width. Board art is drawn at up to
+ * ~1300 CSS px, so 1920 covers a high-DPI display. (The celebrations used to be pictures
+ * in public/assets; they are drawn in code now, so the only raster art is the boards.)
  */
-const TARGETS = [
-    { dir: ['public', 'textures'], maxWidth: 1920 },
-    {
-        dir: ['public', 'assets'],
-        maxWidth: 1024,
-        overrides: { 'thumbnail.png': 1200 },
-    },
-];
+const TARGETS = [{ dir: ['public', 'textures'], maxWidth: 1920 }];
 
 const QUALITY = 82;
 
