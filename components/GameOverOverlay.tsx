@@ -9,6 +9,11 @@ interface GameOverOverlayProps {
     compact: boolean;
     onNewGame: () => void;
     onDownload: () => void;
+    /**
+     * Set when the score that ended the game can still be taken back. The pad has its own
+     * Undo, but on a phone this card sits over it.
+     */
+    onUndo?: () => void;
 }
 
 /**
@@ -23,6 +28,7 @@ export default function GameOverOverlay({
     compact,
     onNewGame,
     onDownload,
+    onUndo,
 }: GameOverOverlayProps) {
     const ranked = useMemo(
         () =>
@@ -106,6 +112,16 @@ export default function GameOverOverlay({
                             Download PDF
                         </button>
                     </div>
+
+                    {onUndo && (
+                        <button
+                            type="button"
+                            onClick={onUndo}
+                            className="mt-4 text-sm text-white/60 hover:text-white underline underline-offset-4 decoration-white/30 hover:decoration-white/70 transition-colors cursor-pointer"
+                        >
+                            Wrong box? Undo the last score
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

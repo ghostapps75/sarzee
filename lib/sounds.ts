@@ -41,7 +41,9 @@ export const SOUNDS: Record<SoundId, SoundDef> = {
     roll: { file: 'roll.mp3', volume: 0.7, preload: 'eager', profile: 'ui' },
     impact: { file: 'hit.mp3', volume: 0.45, preload: 'eager', profile: 'ui' },
     hold: { file: 'pop.mp3', volume: 0.5, preload: 'eager', profile: 'ui' },
-    score: { file: 'score.mp3', volume: 0.6, preload: 'eager', profile: 'ui' },
+    // Plays as a score is written in, which is also the moment the turn passes, so it is
+    // heard every turn: two soft notes (scripts/turn-chime.ts), kept the quietest cue.
+    score: { file: 'chime.mp3', volume: 0.3, preload: 'eager', profile: 'ui' },
     sarzee: { file: 'sarzee.mp3', volume: 0.65, preload: 'lazy', profile: 'feature' },
     nancy: { file: 'nancy.mp3', volume: 0.65, preload: 'lazy', profile: 'feature' },
 };
