@@ -81,13 +81,40 @@ export default function Page() {
         highlightedCategory,
         undoOffer,
         undoLastScore,
+        riggedRoll,
+        armRiggedRoll,
     } = game;
 
-    // Dev-only keyboard shortcuts.
+    // Hidden test keystroke, in every build: type "sarzee" or "nancy" during a game and the
+    // next roll (or, for a Nancy, the next opening roll) is dealt that result, so the
+    // celebrations can be checked without playing for them. Letters typed into a field
+    // don't count, and the word has to be typed within a couple of seconds.
+    useEffect(() => {
+        let typed = '';
+        let lastKey = 0;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
+            const t = e.target as HTMLElement | null;
+            const tag = t?.tagName?.toLowerCase();
+            if (tag === 'input' || tag === 'textarea' || t?.isContentEditable) return;
+            const now = Date.now();
+            typed = ((now - lastKey > 2000 ? '' : typed) + e.key.toLowerCase()).slice(-6);
+            lastKey = now;
+            const word = typed.endsWith('sarzee') ? 'sarzee' : typed.endsWith('nancy') ? 'nancy' : null;
+            if (!word) return;
+            typed = '';
+            armRiggedRoll(word);
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [armRiggedRoll]);
+
+    // Dev-only keyboard shortcuts, on Shift so the typed words above don't trip them.
     useEffect(() => {
         if (!isDev) return;
 
         const onKey = (e: KeyboardEvent) => {
+            if (!e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
             const t = e.target as HTMLElement | null;
             const tag = t?.tagName?.toLowerCase();
             if (tag === 'input' || tag === 'textarea' || t?.isContentEditable) return;
@@ -316,6 +343,15 @@ export default function Page() {
                     onDownload={handleDownload}
                     onUndo={undoOffer ? undoLastScore : undefined}
                 />
+            )}
+
+            {/* The rigged-roll badge: the hidden test keystroke has armed the next roll. */}
+            {riggedRoll && (
+                <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[60] pointer-events-none animate-in fade-in-0 slide-in-from-top-2 duration-300">
+                    <div className="backdrop-blur-md bg-black/75 border border-yellow-500/40 rounded-full px-4 py-1.5 shadow-2xl text-[11px] font-bold tracking-[0.2em] uppercase text-yellow-400">
+                        {riggedRoll === 'sarzee' ? 'Next roll: Sarzee' : 'Next opening roll: Nancy'}
+                    </div>
+                </div>
             )}
 
             <RulesDrawer isOpen={showRules} onClose={() => setShowRules(false)} theme={board.theme} />

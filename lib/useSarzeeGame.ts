@@ -26,6 +26,12 @@ const ROLL_WATCHDOG_MS = 8000;
  */
 export const UNDO_GRACE_MS = 4000;
 
+/**
+ * What the hidden test keystroke can rig: the next roll comes up five of a kind, or the
+ * next opening roll a Nancy, so either celebration can be checked without playing for it.
+ */
+export type RiggedRoll = 'sarzee' | 'nancy';
+
 /** A human's last score, offered back until the next roll. What the pad draws from. */
 export interface UndoOffer {
     /** New for every commit, so a fresh offer restarts its countdown. */
@@ -129,6 +135,17 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         setUndoOffer(entry);
     }, []);
 
+    /**
+     * The rigged roll, if one is armed (see `RiggedRoll`). The ref is what `roll` reads,
+     * since a CPU rolls from a timer; the state copy is for the badge that shows it is set.
+     */
+    const rigRef = useRef<RiggedRoll | null>(null);
+    const [riggedRoll, setRiggedRoll] = useState<RiggedRoll | null>(null);
+    const armRiggedRoll = useCallback((kind: RiggedRoll | null) => {
+        rigRef.current = kind;
+        setRiggedRoll(kind);
+    }, []);
+
     const gameState: GameState | null = allStates[activePlayer] ?? null;
 
     /** Re-read every engine. Cheap enough at 4 players and keeps one source of truth. */
@@ -230,6 +247,25 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
             decided[i] = live.heldDice[i]
                 ? normalizeDie(Number(live.diceValues[i] ?? 1))
                 : (1 + Math.floor(Math.random() * 6)) as DieValue;
+        }
+
+        // A rigged roll, armed from the hidden test keystroke, is consumed by the roll it
+        // shapes. Held dice keep their values, as on any roll, so a Sarzee is only
+        // guaranteed while the held dice (if any) all match.
+        const rig = rigRef.current;
+        if (rig === 'sarzee') {
+            const held = live.heldDice.findIndex(Boolean);
+            const value = held >= 0 ? decided[held] : (5 as DieValue);
+            for (let i = 0; i < 5; i++) if (!live.heldDice[i]) decided[i] = value;
+            rigRef.current = null;
+            setRiggedRoll(null);
+        } else if (rig === 'nancy' && live.rollsLeft === 3) {
+            // Five different numbers that don't make a straight. Nothing is held on an
+            // opening roll, so all five are ours to deal.
+            const nancy: DieValue[] = [1, 2, 3, 5, 6];
+            for (let i = 0; i < 5; i++) decided[i] = nancy[i];
+            rigRef.current = null;
+            setRiggedRoll(null);
         }
 
         try {
@@ -440,6 +476,8 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         syncStates,
         undoOffer,
         undoLastScore,
+        riggedRoll,
+        armRiggedRoll,
 
         // celebrations
         showCelebration,

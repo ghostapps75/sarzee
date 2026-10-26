@@ -200,8 +200,14 @@ moment in the middle stretches or shrinks so the animation ends with the sound (
 seconds if the length isn't known in time). Swap either file and the timing follows. A
 tap, click or key skips to the end, and with reduced motion only the title is shown.
 
-In the dev server, **C** fires the Sarzee and **N** the Nancy, whatever the dice show.
-**L** draws the layout rects and **V** prints each die's value over it.
+To see either one for real, in any build, type **sarzee** or **nancy** on the keyboard
+during a game (not into a field). A badge confirms it is armed; the next roll is dealt five
+of a kind, or the next opening roll a Nancy, and play carries on from there. Held dice keep
+their values, so a rigged Sarzee needs the held dice (if any) to match.
+
+In the dev server, **Shift+C** fires the Sarzee overlay and **Shift+N** the Nancy, whatever
+the dice show. **Shift+L** draws the layout rects and **Shift+V** prints each die's value
+over it.
 
 ## Scripts
 
