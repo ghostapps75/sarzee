@@ -192,6 +192,27 @@ Two things worth knowing:
 | `npm test` | rules and dice-simulation tests |
 | `npm run opt:textures` | downsize/re-encode new or changed art in `public/` (`-- --dry`, `-- --force`) |
 | `npm run opt:audio` | encode and level-match sounds (`-- --dry`, `-- --force`) |
+| `npm run gen:icons` | redraw the favicon, home-screen and manifest icons from the die mark |
+| `npm run gen:card` | re-photograph the link-preview card from a built `out/` (`-- --board <id>`, `-- --rolls <n>`, `-- --dice <name>`) |
+
+## Link previews and icons
+
+What a shared link looks like in iMessage, WhatsApp, Slack or a social feed comes from
+three places, all read from `lib/site.ts` so the copy stays consistent:
+
+- `app/layout.tsx` sets the title, description and Open Graph / Twitter tags. Next.js
+  turns `app/opengraph-image.jpg` (with `app/opengraph-image.alt.txt`) into the preview
+  image tags, and `app/icon.png`, `app/apple-icon.png` and `app/favicon.ico` into the
+  icon tags, from the filenames alone.
+- `app/manifest.ts` is the web app manifest, which is what lets a phone add Sarzee to its
+  home screen as an app. Its icons live in `public/icons/`.
+- `scripts/brand-icons.js` draws every icon from one vector mark, and
+  `scripts/social-card.ts` photographs the preview card from the real game in headless
+  Chrome, so a change to a board or the mark is one script run away from the icons.
+
+Facebook, LinkedIn and iMessage cache a link's preview. After changing the card, paste the
+URL into Facebook's Sharing Debugger and LinkedIn's Post Inspector to make them fetch it
+again; Next.js adds a hash to the image URL on every change so stale copies are not reused.
 
 ## Deployment
 
