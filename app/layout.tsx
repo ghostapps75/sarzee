@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo_Narrow, Geist, Geist_Mono, Patrick_Hand } from "next/font/google";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL, THEME_COLOR } from "@/lib/site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -32,26 +33,34 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover', // Enables fullscreen-like experience on iPad
+  themeColor: THEME_COLOR,
 };
 
+// The share card (app/opengraph-image.jpg, with its alt text alongside) and the icons
+// (app/icon.png, app/apple-icon.png, app/favicon.ico) are picked up from their filenames,
+// so they need no entries here. See scripts/social-card.ts and scripts/brand-icons.js.
 export const metadata: Metadata = {
-  metadataBase: new URL('https://sarzee.netlify.app'),
-  title: "Sarzee - Multiplayer Dice Game",
-  description: "Play Sarzee, the ultimate multiplayer dice game with realistic physics. Roll 5-of-a-kind to win big!",
+  metadataBase: new URL(SITE_URL),
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  alternates: { canonical: '/' },
   appleWebApp: {
     capable: true,
+    title: SITE_NAME,
     statusBarStyle: 'black-translucent',
   },
   openGraph: {
-    title: "Sarzee - Multiplayer Dice Game",
-    description: "Play Sarzee with friends! Realistic 3D dice rolling and handwritten scoring.",
-    images: ['/assets/thumbnail.png'],
+    type: 'website',
+    url: '/',
+    siteName: SITE_NAME,
+    locale: 'en_US',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
   },
+  // Title, description and image are inherited from openGraph; only the card type differs.
   twitter: {
     card: 'summary_large_image',
-    title: "Sarzee",
-    description: "Multiplayer dice game with physics.",
-    images: ['/assets/thumbnail.png'],
   },
 };
 
