@@ -29,9 +29,14 @@ export function useGameSounds() {
         return el;
     }, []);
 
+    /**
+     * Plays a sound and hands back its element, for a caller that needs to follow the
+     * playback — the celebrations time themselves to their cue (see `whenSoundDuration`).
+     * Null when there is no audio to be had.
+     */
     const play = useCallback(
-        (id: SoundId) => {
-            if (typeof window === 'undefined') return;
+        (id: SoundId): HTMLAudioElement | null => {
+            if (typeof window === 'undefined') return null;
             try {
                 const el = element(id);
                 el.volume = SOUNDS[id].volume;
@@ -39,8 +44,10 @@ export function useGameSounds() {
                 // Browsers reject playback before the first user gesture. That is expected
                 // rather than exceptional, so it is swallowed instead of logged per roll.
                 void el.play().catch(() => {});
+                return el;
             } catch {
                 // Audio is a nice-to-have; never let it break a turn.
+                return null;
             }
         },
         [element]
@@ -80,4 +87,31 @@ export function useGameSounds() {
     }, []);
 
     return play;
+}
+
+/**
+ * Calls back with a sound's length in seconds once the browser knows it: at once if the
+ * metadata is already in, otherwise when it arrives. The celebrations use this to fit their
+ * animation to whatever file is in public/sounds, so a new cue needs no code change.
+ * Returns a function that stops listening.
+ */
+export function whenSoundDuration(el: HTMLAudioElement | null, cb: (seconds: number) => void): () => void {
+    if (!el) return () => {};
+    const known = () => Number.isFinite(el.duration) && el.duration > 0;
+    if (known()) {
+        cb(el.duration);
+        return () => {};
+    }
+    const onMeta = () => {
+        if (!known()) return;
+        el.removeEventListener('loadedmetadata', onMeta);
+        el.removeEventListener('durationchange', onMeta);
+        cb(el.duration);
+    };
+    el.addEventListener('loadedmetadata', onMeta);
+    el.addEventListener('durationchange', onMeta);
+    return () => {
+        el.removeEventListener('loadedmetadata', onMeta);
+        el.removeEventListener('durationchange', onMeta);
+    };
 }

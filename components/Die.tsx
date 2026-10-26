@@ -34,6 +34,11 @@ interface DieProps {
      * which is what "tap near a die" should mean anyway.
      */
     tapScale?: number;
+    /**
+     * Effects a celebration applies on top of the pose, mutated in place by the arena like
+     * the pose itself: hidden (a die that has hopped into the Nancy dumpster) and a glint.
+     */
+    fx?: { visible: boolean; glow: number };
 }
 
 // Every dimension is a proportion of the die's edge length, so resizing a die is a
@@ -45,6 +50,9 @@ const PIP_OFFSET = DIE_SIZE * DIE_PROPORTIONS.pipOffset;
 const CORNER_RADIUS = DIE_SIZE * DIE_PROPORTIONS.cornerRadius;
 /** Smallest comfortable tap target, as a multiple of the die's edge length. */
 const MIN_TAP_SCALE = 1.12;
+/** The colour a die flashes when it glints; scaled by `fx.glow`. */
+const GLINT_COLOR = '#fff1c4';
+const GLINT_STRENGTH = 0.6;
 
 /**
  * How far apart a board's signature pip colour and the die's colour must be, in perceived
@@ -143,11 +151,13 @@ const Die = forwardRef<DieHandle, DieProps>(
             boardId = 'the-cafe',
             faceRotation,
             tapScale = MIN_TAP_SCALE,
+            fx,
         },
         ref
     ) => {
         const groupRef = useRef<THREE.Group>(null);
         const faceGroupRef = useRef<THREE.Group>(null);
+        const bodyRef = useRef<THREE.MeshStandardMaterial>(null);
         const [debugValue, setDebugValue] = useState(1);
 
         /** Body orientation combined with the pip relabelling: what the player sees. */
@@ -200,6 +210,8 @@ const Die = forwardRef<DieHandle, DieProps>(
             if (!g) return;
             g.position.copy(position);
             g.quaternion.copy(quaternion);
+            g.visible = fx ? fx.visible : true;
+            if (bodyRef.current) bodyRef.current.emissiveIntensity = (fx?.glow ?? 0) * GLINT_STRENGTH;
 
             const faces = faceGroupRef.current;
             if (faces) {
@@ -248,6 +260,9 @@ const Die = forwardRef<DieHandle, DieProps>(
                 <group ref={faceGroupRef} raycast={() => null}>
                     <RoundedBox args={[DIE_SIZE, DIE_SIZE, DIE_SIZE]} radius={CORNER_RADIUS} smoothness={8} castShadow>
                         <meshStandardMaterial
+                            ref={bodyRef}
+                            emissive={GLINT_COLOR}
+                            emissiveIntensity={0}
                             color={skin.color}
                             roughness={skin.roughness}
                             metalness={skin.metalness}

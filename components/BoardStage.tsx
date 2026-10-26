@@ -30,6 +30,12 @@ interface BoardStageProps {
     rollsLeft: number;
     /** Renders the HUD, given the board's title plate in stage pixels. */
     hud?: (titlePlate: PxRect) => React.ReactNode;
+    /**
+     * Drawn on the felt, clipped to it, and moving with the table when it shakes. Its box
+     * has no z-index of its own, so content can sit under the dice (z below 10) or over
+     * them (above 10).
+     */
+    feltOverlay?: React.ReactNode;
     children?: React.ReactNode;
 }
 
@@ -153,6 +159,7 @@ export default function BoardStage({
     rollDisabled,
     rollsLeft,
     hud,
+    feltOverlay,
     children,
 }: BoardStageProps) {
     const hostRef = useRef<HTMLDivElement>(null);
@@ -161,9 +168,9 @@ export default function BoardStage({
      * The layer that actually gets shaken: the artwork, the dice canvas and ROLL.
      *
      * Deliberately not the host. A transform makes an element the containing block for
-     * `position: fixed` descendants, and the celebration overlays are fixed and full-screen
-     * — animating the host would shrink them to the board and drag them along with it. It
-     * also keeps the transform off the element `useBoardLayout` measures.
+     * `position: fixed` descendants, so animating the host would re-anchor any fixed child
+     * to the board and drag it along. It also keeps the transform off the element
+     * `useBoardLayout` measures.
      */
     const stageRef = useRef<HTMLDivElement>(null);
 
@@ -264,6 +271,12 @@ export default function BoardStage({
                             </span>
                         </button>
 
+                        {feltOverlay && (
+                            <div className="pointer-events-none overflow-hidden" style={felt}>
+                                {feltOverlay}
+                            </div>
+                        )}
+
                         {hud?.(titlePlate)}
 
                         {debugRects && (
@@ -282,8 +295,8 @@ export default function BoardStage({
                         )}
                     </div>
 
-                    {/* Outside the shaken layer: the celebrations are full-screen `fixed`
-                        overlays, which a transformed ancestor would re-anchor to the board. */}
+                    {/* Outside the shaken layer, so a `fixed` child stays anchored to the window
+                        rather than to a transformed ancestor. */}
                     {children}
                 </>
             )}

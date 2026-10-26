@@ -29,6 +29,65 @@ export interface DiceArenaHandle {
      */
     showDice: (values: number[]) => void;
     triggerCelebrationShake: (intensity?: number) => void;
+    /**
+     * Hands the dice to a celebration. The caller owns the clock: it advances `cue.tau`
+     * every frame and the dice are posed from it, so the choreography stays in step with
+     * whatever the caller draws over the table. Returns false, and leaves the dice alone,
+     * while a roll is still playing.
+     */
+    celebrate: (cue: CelebrationCue) => boolean;
+    /** Ends a celebration with every die back exactly where it was, showing the same face. */
+    endCelebration: () => void;
+    /** Where each die appears on the felt right now, for effects drawn over it. */
+    dicePoints: () => DiePoint[];
+}
+
+/**
+ * The Sarzee bow. All times are on the caller's choreography clock, in seconds: the dice
+ * lift and spin until `slamStart`, drop onto the felt at `impact`, and glide back to where
+ * they were between `returnStart` and `returnEnd`.
+ */
+export interface SarzeeCue {
+    kind: 'sarzee';
+    tau: number;
+    liftEnd: number;
+    slamStart: number;
+    impact: number;
+    returnStart: number;
+    returnEnd: number;
+    /** Where the row lands, as a fraction of the felt's height from its top edge. */
+    rowY: number;
+}
+
+/**
+ * The Nancy: the dice hop one by one into the dumpster's mouth, then hop back out. The
+ * mouth is in felt fractions and is updated by the caller as the dumpster moves.
+ */
+export interface NancyCue {
+    kind: 'nancy';
+    tau: number;
+    mouth: {
+        /** Centre of the opening. */
+        x: number;
+        /** The front rim: a die is out of sight once it has dropped below this line. */
+        rim: number;
+        /** The back rim, which every hop arcs above on its way in or out. */
+        top: number;
+        /** Width of the opening. */
+        width: number;
+    };
+    /** When the first hop starts, the gap between hops, and how long each one takes. */
+    hopIn: { first: number; stagger: number; duration: number };
+    hopOut: { first: number; stagger: number; duration: number };
+}
+
+export type CelebrationCue = SarzeeCue | NancyCue;
+
+/** A die as seen on the felt: fractions of the felt's width and height, from its top left. */
+export interface DiePoint {
+    x: number;
+    y: number;
+    visible: boolean;
 }
 
 interface DiceArenaProps {
@@ -109,6 +168,23 @@ function keyLightPosition(arenaWidth: number, arenaHeight: number): [number, num
 const clampDie = (v: number) => Math.max(1, Math.min(6, Math.round(v)));
 
 const easeOutCubic = (x: number) => 1 - Math.pow(1 - x, 3);
+const easeInOutCubic = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+/** Sarzee bow: how high the dice lift, the extra rise before the slam, and the spin. */
+const BOW_HOVER = 2.4;
+const BOW_WINDUP = 0.45;
+const BOW_TURNS = 2;
+/** The little hop the row makes off the felt after it slams down, and how long it takes. */
+const BOW_BOUNCE = 0.16;
+const BOW_BOUNCE_S = 0.2;
+/** How long the dice glint after they land. It is over well before the held picture. */
+const BOW_GLINT_S = 0.45;
+/** How high a die rises towards the camera at the top of a hop into the dumpster. */
+const HOP_LIFT = 1.4;
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+const WORLD_X = new THREE.Vector3(1, 0, 0);
 
 function eulerForValue(value: number): [number, number, number] {
     switch (value) {
@@ -166,6 +242,26 @@ type ArenaState = {
     }>;
     /** Where each die sat before it was held, so un-holding puts it back. */
     preHold: THREE.Vector3[];
+    /** Per-die effects a celebration can apply on top of the pose. */
+    fx: DieFx[];
+    celebration: Celebration | null;
+};
+
+/** Read by each Die every frame: whether it is drawn, and how hard it is glinting (0..1). */
+export type DieFx = { visible: boolean; glow: number };
+
+/** A celebration in progress: its cue, and where each die was when it started. */
+type Celebration = {
+    cue: CelebrationCue;
+    /**
+     * Each die's resting pose when the celebration began. A held die records its tray slot
+     * rather than a position, so it goes back to the right slot even if the layout changed.
+     */
+    home: Array<{ pos: THREE.Vector3; quat: THREE.Quaternion; slot: number | null }>;
+    /** The same face up, squared to the table: how each die sits in the Sarzee row. */
+    rowQ: THREE.Quaternion[];
+    /** Each die's place in the choreography: left to right in the row, or its turn to hop. */
+    rank: number[];
 };
 
 function createArenaState(): ArenaState {
@@ -188,7 +284,155 @@ function createArenaState(): ArenaState {
             toQ: new THREE.Quaternion(),
         })),
         preHold: Array.from({ length: 5 }, () => new THREE.Vector3(0, REST_Y, 0)),
+        fx: Array.from({ length: 5 }, () => ({ visible: true, glow: 0 })),
+        celebration: null,
     };
+}
+
+/** Puts every die back where the celebration found it and clears its effects. */
+function endCelebrationOn(s: ArenaState, heldSlotPositions: THREE.Vector3[]) {
+    const c = s.celebration;
+    if (!c) return;
+    s.celebration = null;
+    for (let i = 0; i < 5; i++) {
+        const home = c.home[i];
+        s.positions[i].copy(home.slot !== null ? heldSlotPositions[home.slot] ?? home.pos : home.pos);
+        s.quats[i].copy(home.quat);
+        s.fx[i].visible = true;
+        s.fx[i].glow = 0;
+    }
+}
+
+const tmpYaw = new THREE.Quaternion();
+const tmpTumble = new THREE.Quaternion();
+const tmpBase = new THREE.Quaternion();
+const tmpFrom = new THREE.Vector3();
+const tmpTo = new THREE.Vector3();
+
+/**
+ * One die on a hop between two points on the felt. The felt is seen from straight above
+ * but the dumpster is drawn side-on, so a hop is a cartoon arc up the screen and back down
+ * (towards the camera a little at the top, for size). It tumbles one turn about the
+ * screen's horizontal and lands at exactly `endQ`.
+ */
+function poseHop(
+    s: ArenaState,
+    i: number,
+    from: THREE.Vector3,
+    to: THREE.Vector3,
+    apexZ: number,
+    u: number,
+    endQ: THREE.Quaternion,
+    tumbleIn: boolean
+) {
+    const midZ = (from.z + to.z) / 2;
+    const rise = Math.max(DIE_SIZE * 0.8, midZ - apexZ);
+    s.positions[i].set(
+        lerp(from.x, to.x, u),
+        REST_Y + HOP_LIFT * Math.sin(Math.PI * u),
+        lerp(from.z, to.z, u) - rise * 4 * u * (1 - u)
+    );
+    // Into the dumpster it tumbles away from where it sat; out of it, it tumbles back
+    // into exactly the pose it had, so the face it rolled is the one it lands on.
+    const turn = tumbleIn ? 2 * Math.PI * u : -2 * Math.PI * (1 - u);
+    s.quats[i].copy(tmpTumble.setFromAxisAngle(WORLD_X, turn)).multiply(endQ);
+}
+
+/** Poses every die from the celebration's clock. Runs each frame while one is in progress. */
+function poseCelebration(
+    s: ArenaState,
+    arenaWidth: number,
+    arenaHeight: number,
+    rowSpacing: number,
+    heldSlotPositions: THREE.Vector3[]
+) {
+    const c = s.celebration;
+    if (!c) return;
+    const { cue } = c;
+    const tau = cue.tau;
+    const homeOf = (i: number) => {
+        const h = c.home[i];
+        return h.slot !== null ? heldSlotPositions[h.slot] ?? h.pos : h.pos;
+    };
+
+    if (cue.kind === 'sarzee') {
+        const rowZ = (cue.rowY - 0.5) * arenaHeight;
+        const travelFrom = cue.liftEnd * 0.3;
+        for (let i = 0; i < 5; i++) {
+            const home = homeOf(i);
+            tmpTo.set((c.rank[i] - 2) * rowSpacing, REST_Y, rowZ);
+            const p = s.positions[i];
+
+            if (tau < cue.impact) {
+                const m = easeInOutCubic(clamp01((tau - travelFrom) / (cue.slamStart - travelFrom)));
+                let y: number;
+                if (tau < cue.slamStart) {
+                    y =
+                        REST_Y +
+                        BOW_HOVER * easeOutCubic(clamp01(tau / cue.liftEnd)) +
+                        BOW_WINDUP * easeOutCubic(clamp01((tau - cue.liftEnd) / (cue.slamStart - cue.liftEnd)));
+                } else {
+                    // Straight down, accelerating, so it lands like it means it.
+                    const k = clamp01((tau - cue.slamStart) / (cue.impact - cue.slamStart));
+                    y = lerp(REST_Y + BOW_HOVER + BOW_WINDUP, REST_Y, k * k * k);
+                }
+                p.set(lerp(home.x, tmpTo.x, m), y, lerp(home.z, tmpTo.z, m));
+
+                // Squared up while lifting, so the five turn as one; whole turns only, so
+                // the face that was rolled is still the one on top when they land.
+                tmpBase.slerpQuaternions(c.home[i].quat, c.rowQ[i], easeOutCubic(clamp01(tau / cue.liftEnd)));
+                const yaw = BOW_TURNS * 2 * Math.PI * easeInOutCubic(clamp01(tau / cue.slamStart));
+                s.quats[i].copy(tmpYaw.setFromAxisAngle(WORLD_UP, yaw)).multiply(tmpBase);
+            } else if (tau < cue.returnStart) {
+                const k = (tau - cue.impact) / BOW_BOUNCE_S;
+                p.copy(tmpTo);
+                if (k < 1) p.y = REST_Y + BOW_BOUNCE * Math.sin(Math.PI * k);
+                s.quats[i].copy(c.rowQ[i]);
+            } else {
+                const k = easeInOutCubic(clamp01((tau - cue.returnStart) / (cue.returnEnd - cue.returnStart)));
+                p.lerpVectors(tmpTo, home, k);
+                p.y = REST_Y + 0.6 * Math.sin(Math.PI * k);
+                s.quats[i].slerpQuaternions(c.rowQ[i], c.home[i].quat, k);
+            }
+
+            s.fx[i].visible = true;
+            const g = (tau - cue.impact) / BOW_GLINT_S;
+            s.fx[i].glow = g >= 0 && g < 1 ? (1 - g) * (1 - g) : 0;
+        }
+        return;
+    }
+
+    // Nancy.
+    const { mouth, hopIn, hopOut } = cue;
+    const mouthX = (mouth.x - 0.5) * arenaWidth;
+    const rimZ = (mouth.rim - 0.5) * arenaHeight;
+    const apexZ = (mouth.top - 0.5) * arenaHeight - DIE_SIZE;
+    const spread = Math.min(DIE_SIZE * 0.45, (mouth.width * arenaWidth) / 10);
+    for (let i = 0; i < 5; i++) {
+        const r = c.rank[i];
+        const home = homeOf(i);
+        // Just below the front rim, where the dumpster's front hides it.
+        tmpFrom.set(mouthX + (r - 2) * spread, REST_Y, rimZ + DIE_SIZE * 1.1);
+        const inStart = hopIn.first + r * hopIn.stagger;
+        const outStart = hopOut.first + r * hopOut.stagger;
+        const fx = s.fx[i];
+
+        if (tau < inStart || tau >= outStart + hopOut.duration) {
+            s.positions[i].copy(home);
+            s.quats[i].copy(c.home[i].quat);
+            fx.visible = true;
+        } else if (tau < inStart + hopIn.duration) {
+            poseHop(s, i, home, tmpFrom, apexZ, (tau - inStart) / hopIn.duration, c.home[i].quat, true);
+            fx.visible = true;
+        } else if (tau < outStart) {
+            s.positions[i].copy(tmpFrom);
+            fx.visible = false;
+        } else {
+            poseHop(s, i, tmpFrom, home, apexZ, (tau - outStart) / hopOut.duration, c.home[i].quat, false);
+            fx.visible = true;
+        }
+        fx.glow = 0;
+    }
 }
 
 /** Points a die's chosen face upward, with a random quarter-turn so it isn't uniform. */
@@ -214,6 +458,7 @@ function DiceLayer({
     showDebugNumbers,
     arenaWidth,
     arenaHeight,
+    rowSpacing,
     tapScale,
     onTurnComplete,
     onImpact,
@@ -228,6 +473,8 @@ function DiceLayer({
     showDebugNumbers: boolean;
     arenaWidth: number;
     arenaHeight: number;
+    /** Centre-to-centre gap of the at-rest row, which the Sarzee row reuses. */
+    rowSpacing: number;
     tapScale: number;
     onTurnComplete?: (results: number[]) => void;
     onImpact?: () => void;
@@ -307,6 +554,13 @@ function DiceLayer({
             }
         }
 
+        // --- celebration ---
+        // After the tray bookkeeping, so it has the last word on any die it is moving. A
+        // roll ends a celebration before it starts, so the two never overlap.
+        if (state.celebration && !state.playback) {
+            poseCelebration(state, arenaWidth, arenaHeight, rowSpacing, heldSlotPositions);
+        }
+
         // --- simulation playback ---
         const pb = state.playback;
         if (!pb) return;
@@ -367,6 +621,7 @@ function DiceLayer({
                     position={state.positions[i]}
                     quaternion={state.quats[i]}
                     faceRotation={state.faceRot[i]}
+                    fx={state.fx[i]}
                     isHeld={!!heldDice[i]}
                     color={diceColor}
                     showDebugNumber={showDebugNumbers}
@@ -619,7 +874,10 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
 
             const setFace = (i: number, value: number) => setFaceOn(s, i, value);
 
+            const endCelebration = () => endCelebrationOn(s, heldSlotPositions);
+
             const rollToResult = (values: number[]) => {
+                endCelebration();
                 s.rollSeq += 1;
                 s.lastEmitted = values.map(clampDie);
 
@@ -673,6 +931,7 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
             };
 
             const reset = () => {
+                endCelebration();
                 s.playback = null;
                 s.heldSlots.clear();
                 s.prevHeld = [false, false, false, false, false];
@@ -698,9 +957,64 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
                 triggerCelebrationShake: (intensity = 1.2) => {
                     onCelebrationShake?.(intensity);
                 },
+                celebrate: (cue: CelebrationCue) => {
+                    if (s.playback) return false;
+                    endCelebration();
+
+                    // Land any tray glide still in flight, so the pose recorded as home is
+                    // where the die is actually going to rest.
+                    for (let i = 0; i < 5; i++) {
+                        const anim = s.heldAnim[i];
+                        if (!anim.moving) continue;
+                        s.positions[i].copy(anim.to);
+                        if (anim.turning) s.quats[i].copy(anim.toQ);
+                        anim.moving = false;
+                        anim.turning = false;
+                    }
+
+                    const home = s.positions.map((p, i) => ({
+                        pos: p.clone(),
+                        quat: s.quats[i].clone(),
+                        slot: heldDice[i] ? s.heldSlots.get(i) ?? null : null,
+                    }));
+
+                    // The row goes left to right in the order the dice already lie, so they
+                    // don't cross paths; the hops go nearest the dumpster first.
+                    const order = [0, 1, 2, 3, 4];
+                    if (cue.kind === 'sarzee') {
+                        order.sort((a, b) => home[a].pos.x - home[b].pos.x);
+                    } else {
+                        const mx = (cue.mouth.x - 0.5) * arenaWidth;
+                        const mz = (cue.mouth.rim - 0.5) * arenaHeight;
+                        const d = (i: number) => Math.hypot(home[i].pos.x - mx, home[i].pos.z - mz);
+                        order.sort((a, b) => d(a) - d(b));
+                    }
+                    const rank: number[] = [];
+                    order.forEach((dieIdx, r) => (rank[dieIdx] = r));
+
+                    s.celebration = {
+                        cue,
+                        home,
+                        rowQ: s.quats.map((q) => nearestCubeRotation(q)),
+                        rank,
+                    };
+                    return true;
+                },
+                endCelebration,
+                dicePoints: () =>
+                    s.positions.map((p, i) => {
+                        // A die off the felt is nearer the camera, so it appears pushed out
+                        // from the centre of the view.
+                        const k = CAMERA_DISTANCE / Math.max(1, CAMERA_DISTANCE - (p.y - REST_Y));
+                        return {
+                            x: 0.5 + (p.x * k) / arenaWidth,
+                            y: 0.5 + (p.z * k) / arenaHeight,
+                            visible: s.fx[i].visible,
+                        };
+                    }),
             };
         },
-        [heldDice, bounds, restSpacing, onTurnComplete, onCelebrationShake]
+        [heldDice, bounds, restSpacing, onTurnComplete, onCelebrationShake, heldSlotPositions, arenaWidth, arenaHeight]
     );
 
     return (
@@ -759,6 +1073,7 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
                         showDebugNumbers={showDebugNumbers}
                         arenaWidth={arenaWidth}
                         arenaHeight={arenaHeight}
+                        rowSpacing={restSpacing}
                         tapScale={tapScale}
                         onTurnComplete={onTurnComplete}
                         onImpact={onImpact}
