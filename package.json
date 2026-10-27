@@ -12,7 +12,7 @@
     "gen:icons": "node scripts/brand-icons.js",
     "gen:card": "tsx scripts/social-card.ts",
     "gen:chime": "tsx scripts/turn-chime.ts",
-    "test": "tsx lib/SarzeeEngine.test.ts && tsx lib/diceSimulation.test.ts && tsx lib/dieFaces.test.ts && tsx lib/scoreAdvice.test.ts"
+    "test": "tsx lib/SarzeeEngine.test.ts && tsx lib/diceSimulation.test.ts && tsx lib/dieFaces.test.ts && tsx lib/scoreAdvice.test.ts && tsx lib/matchLog.test.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
