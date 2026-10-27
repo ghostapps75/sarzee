@@ -5,7 +5,7 @@ tabletops. Next.js static export, three.js for the dice.
 
 ```bash
 npm run dev      # http://localhost:3000
-npm test         # game rules + dice simulation
+npm test         # game rules, dice simulation, match records
 npm run build    # static export to out/
 ```
 
@@ -19,6 +19,7 @@ lib/
   boards.ts            Every board: artwork, geometry, palette, dice finish.
   useBoardLayout.ts    Projects board-image coordinates into screen pixels.
   useSarzeeGame.ts     Game state and the actions that change it.
+  matchLog.ts          Match records in local storage: stats, high scores, save and load.
   sounds.ts            Every sound: file, volume, preload and encoding profile.
   useGameSounds.ts     The only thing in the app that touches an Audio element.
   useCelebrationClock.ts  Times a celebration to its sound; handles skip and reduced motion.
@@ -31,6 +32,8 @@ components/
   ScoreTable.tsx       The scorecard: a paper score pad in real DOM, every size.
   SarzeeCelebration.tsx, NancyCelebration.tsx
                        The two celebrations, drawn over the felt.
+  StatsDashboard.tsx   The Stats drawer: overview, match history, high scores.
+  HighScoreBoard.tsx   The high score table, drawn from a plain list of entries.
 ```
 
 ### Layout: board coordinates, not viewport percentages
@@ -209,13 +212,32 @@ In the dev server, **Shift+C** fires the Sarzee overlay and **Shift+N** the Nanc
 the dice show. **Shift+L** draws the layout rects and **Shift+V** prints each die's value
 over it.
 
+### Stats and high scores
+
+Every finished game is recorded in the browser's local storage (`lib/matchLog.ts`, the
+latest 200), and the Stats drawer is built from those records. Its **High Scores** tab is
+the top ten totals by human players on this device, with the board and date beside each.
+CPU scores are left off (they stay in the match history); there is one list across every
+board rather than one per board; a tie goes to whoever got there first; and a total below
+zero or above 1,575, the most a card can score, is ignored. A record that holds a place is
+never trimmed for age. At game over the final card marks a human who makes the top ten
+with **New high score!**, or **Best ever!** for first place, measured against the board as
+it stood before that game; undoing the last score takes the record and the badge away.
+
+The records live in one browser, so **Save scores** downloads them all as a pretty-printed
+JSON file (`version`, `exportedAt`, `records`) and **Load scores** merges such a file back
+in, on this device or another. Records are matched by id, so loading a file twice adds
+nothing, and anything that doesn't have the shape of a match record is skipped. The table
+is drawn from a plain array of entries (id, name, score, board, date), so a shared board
+served from elsewhere could feed it without touching the UI.
+
 ## Scripts
 
 | | |
 |---|---|
 | `npm run dev` | dev server on `0.0.0.0:3000` |
 | `npm run build` | static export to `out/` |
-| `npm test` | rules and dice-simulation tests |
+| `npm test` | rules, dice-simulation and match-record tests |
 | `npm run opt:textures` | downsize/re-encode new or changed art in `public/` (`-- --dry`, `-- --force`) |
 | `npm run opt:audio` | encode and level-match sounds (`-- --dry`, `-- --force`) |
 | `npm run gen:chime` | re-synthesise the turn chime into `public/sounds/chime.mp3`; run `opt:audio` after it |
