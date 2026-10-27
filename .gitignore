@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local archive of replaced assets (old sounds, Suno sources); git history has them too
+/archive/
