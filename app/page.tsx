@@ -81,6 +81,7 @@ export default function Page() {
         highlightedCategory,
         undoOffer,
         undoLastScore,
+        highScorePlaces,
         riggedRoll,
         armRiggedRoll,
     } = game;
@@ -342,6 +343,7 @@ export default function Page() {
                     onNewGame={game.resetAll}
                     onDownload={handleDownload}
                     onUndo={undoOffer ? undoLastScore : undefined}
+                    highScorePlaces={highScorePlaces}
                 />
             )}
 

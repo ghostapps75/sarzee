@@ -6,7 +6,7 @@ import { SarzeeEngine } from './SarzeeEngine';
 import { DieValue, GamePhase, GameState, ScoreCategory } from './types';
 import { CpuPersonality } from './CpuAgent';
 import { DEFAULT_BOARD_ID, getBoard } from './boards';
-import { appendMatchLog, removeMatchLog } from './matchLog';
+import { appendMatchLog, boardPlacings, readMatchLogs, removeMatchLog } from './matchLog';
 import { useGameSounds } from './useGameSounds';
 
 export type PlayerType = 'HUMAN' | CpuPersonality;
@@ -136,6 +136,13 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
     }, []);
 
     /**
+     * Each seat's place on the high score board for the game that just ended (1 is the
+     * top), or null if it didn't make it. Worked out once, when the game ends, and dropped
+     * if that game is undone: its record goes, so the claim has to go with it.
+     */
+    const [highScorePlaces, setHighScorePlaces] = useState<(number | null)[] | null>(null);
+
+    /**
      * The rigged roll, if one is armed (see `RiggedRoll`). The ref is what `roll` reads,
      * since a CPU rolls from a timer; the state copy is for the badge that shows it is set.
      */
@@ -185,6 +192,7 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         setShowCelebration(false);
         setShowNancyCelebration(false);
         setUndo(null);
+        setHighScorePlaces(null);
         clearTimers();
 
         arenaRef.current?.reset();
@@ -209,6 +217,7 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         setNancysInGame(0);
         setHighlightedCategory(null);
         setUndo(null);
+        setHighScorePlaces(null);
     }, [clearTimers, setUndo]);
 
     const toggleHold = useCallback(
@@ -346,15 +355,20 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
             let matchLogId: string | null = null;
             if (gameOver) {
                 setPhase('GAME_OVER');
-                matchLogId =
-                    appendMatchLog({
-                        boardName: getBoard(selectedBoard).name,
-                        names: customNames,
-                        types: playerTypes,
-                        totals: states.map((s) => s.totalScore),
-                        sarzeeCount: sarzeesInGame,
-                        nancyCount: nancysInGame,
-                    })?.id ?? null;
+                // Read before the append, so the new scores are measured against the board
+                // as it stood rather than against themselves.
+                const earlier = readMatchLogs();
+                const log = appendMatchLog({
+                    boardName: getBoard(selectedBoard).name,
+                    names: customNames,
+                    types: playerTypes,
+                    totals: states.map((s) => s.totalScore),
+                    sarzeeCount: sarzeesInGame,
+                    nancyCount: nancysInGame,
+                });
+                matchLogId = log?.id ?? null;
+                // No record saved, no place on the board to claim.
+                setHighScorePlaces(log ? boardPlacings(earlier, log) : null);
             }
 
             // Only a human's score can be taken back; a CPU's choice is never a slip.
@@ -405,6 +419,7 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         engine.restoreState(entry.before);
         // The game this record described is no longer over.
         if (entry.matchLogId) removeMatchLog(entry.matchLogId);
+        setHighScorePlaces(null);
         setUndo(null);
 
         const states = syncStates();
@@ -476,6 +491,7 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         syncStates,
         undoOffer,
         undoLastScore,
+        highScorePlaces,
         riggedRoll,
         armRiggedRoll,
 

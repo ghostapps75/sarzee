@@ -14,6 +14,11 @@ interface GameOverOverlayProps {
      * Undo, but on a phone this card sits over it.
      */
     onUndo?: () => void;
+    /**
+     * Each seat's place on this device's high score board (1 is the top), or null if it
+     * didn't make it. Indexed like `totals`.
+     */
+    highScorePlaces?: (number | null)[] | null;
 }
 
 /**
@@ -29,6 +34,7 @@ export default function GameOverOverlay({
     onNewGame,
     onDownload,
     onUndo,
+    highScorePlaces,
 }: GameOverOverlayProps) {
     const ranked = useMemo(
         () =>
@@ -69,6 +75,7 @@ export default function GameOverOverlay({
                         <div className="text-white/70 text-xs uppercase tracking-widest mb-2">Final Scores</div>
                         {ranked.map((player, rank) => {
                             const isTop = player.score === top.score;
+                            const place = highScorePlaces?.[player.index] ?? null;
                             return (
                                 <div
                                     key={player.index}
@@ -82,11 +89,25 @@ export default function GameOverOverlay({
                                         <span className="text-xl font-bold text-white/80 shrink-0">
                                             {rank === 0 ? '🥇' : rank === 1 ? '🥈' : rank === 2 ? '🥉' : `#${rank + 1}`}
                                         </span>
-                                        <span
-                                            className={`font-bold truncate ${isTop ? 'text-yellow-400' : 'text-white/80'}`}
-                                        >
-                                            {player.name}
-                                        </span>
+                                        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 min-w-0">
+                                            <span
+                                                className={`font-bold truncate max-w-full ${isTop ? 'text-yellow-400' : 'text-white/80'}`}
+                                            >
+                                                {player.name}
+                                            </span>
+                                            {place !== null && (
+                                                <span
+                                                    title={`#${place} on this device's high scores`}
+                                                    className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                                        place === 1
+                                                            ? 'bg-yellow-400 text-slate-900 shadow-[0_0_12px_rgba(250,204,21,0.45)]'
+                                                            : 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/40'
+                                                    }`}
+                                                >
+                                                    {place === 1 ? 'Best ever!' : 'New high score!'}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                     <span
                                         className={`text-lg font-black shrink-0 ${isTop ? 'text-yellow-400' : 'text-white'}`}
