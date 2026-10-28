@@ -725,7 +725,3 @@ export function traySlots(tray: FracRect, count: number): FracRect[] {
         h: tray.h / count,
     }));
 }
-
-export function boardTextureUrl(board: BoardDefinition): string {
-    return `/textures/${board.file}`;
-}
