@@ -175,6 +175,14 @@ export default function RulesDrawer({ isOpen, onClose, theme: themeColors }: Rul
                 <span className="text-emerald-400 font-bold">35 pts if Upper Sum &ge; 63</span>
               </li>
             </ul>
+            <p className="text-xs text-gray-400 leading-normal">
+              <strong className="text-white">Jokers (house rule).</strong> Roll another Sarzee once your Sarzee box is filled
+              and the upper box for that number is filled too (Fives, for five 5s), and it&apos;s a{' '}
+              <strong className="text-white">Joker</strong>: put it in any open box you like, and Full House, Small Straight and
+              Large Straight pay their full <strong className="text-white">25, 30 and 40</strong>. Until that upper box is
+              filled, a repeat Sarzee scores 0 in those three. If your Sarzee box holds 50, the{' '}
+              <strong className="text-white">+100 bonus</strong> still applies wherever it goes.
+            </p>
           </div>
         </div>
 
