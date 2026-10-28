@@ -1,7 +1,27 @@
 import React, { useState } from 'react';
 import { CpuPersonality } from '@/lib/CpuAgent';
-import { BOARDS, getBoard } from '@/lib/boards';
+import { BOARDS, BoardDefinition, getBoard } from '@/lib/boards';
 import { useSoundMuted } from '@/lib/useGameSounds';
+
+/**
+ * A board's picture cropped to the board itself (its `unit` rect), without the table
+ * dressing around it: background-size scales the image so the rect fills the box, and
+ * background-position puts the rect's corner at the box's. The box takes the rect's
+ * aspect ratio, so nothing is stretched.
+ */
+function boardThumbnail(board: BoardDefinition): React.CSSProperties {
+  const { x, y, w, h } = board.unit;
+  // A percentage position p lines up p% of the image with p% of the box; solving for the
+  // rect's corner gives start / (1 - size). A rect spanning the whole axis needs none.
+  const at = (start: number, size: number) => (size >= 1 ? 0 : (start / (1 - size)) * 100);
+  return {
+    backgroundImage: `url(/textures/${board.file})`,
+    backgroundSize: `${100 / w}% ${100 / h}%`,
+    backgroundPosition: `${at(x, w)}% ${at(y, h)}%`,
+    backgroundRepeat: 'no-repeat',
+    aspectRatio: (w * board.imgW) / (h * board.imgH),
+  };
+}
 
 interface SetupPanelProps {
   selectedBoard: string;
@@ -179,11 +199,11 @@ export default function SetupPanel({
                           outlineColor: themeColors.focus,
                         }}
                       >
-                        {/* Little Miniature Board Image */}
+                        {/* The whole board in miniature, at the card's usual height. */}
                         <span
-                          className="block w-16 h-16 rounded-xl border shrink-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
+                          className="block h-16 rounded-xl border shrink-0 transition-transform duration-500 group-hover:scale-105"
                           style={{
-                            backgroundImage: `url(/textures/${board.file})`,
+                            ...boardThumbnail(board),
                             borderColor: isActive ? themeColors.border : 'rgba(255,255,255,0.1)',
                           }}
                         />
