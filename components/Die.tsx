@@ -8,7 +8,6 @@ import { getBoard } from '@/lib/boards';
 import { DIE_HALF, DIE_PROPORTIONS, DIE_SIZE, HELD_SCALE, valueFromQuaternion } from '@/lib/dieFaces';
 
 interface DieProps {
-    index: number;
     position: THREE.Vector3;
     quaternion: THREE.Quaternion;
     isHeld: boolean;

@@ -617,7 +617,6 @@ function DiceLayer({
             {state.positions.map((_, i) => (
                 <Die
                     key={i}
-                    index={i}
                     position={state.positions[i]}
                     quaternion={state.quats[i]}
                     faceRotation={state.faceRot[i]}
