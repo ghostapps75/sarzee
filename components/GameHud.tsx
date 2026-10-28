@@ -12,6 +12,8 @@ interface GameHudProps {
     playerType: PlayerType;
     playerColor: string;
     rollsLeft: number;
+    /** Nobody is on turn: the player line reads "Game over" instead. */
+    gameOver?: boolean;
     theme: BoardTheme;
     /** The board's title plate, projected into stage pixels. The HUD lives in it when it fits. */
     plate: PxRect;
@@ -42,6 +44,8 @@ const ROOMY_PLATE_WIDTH = 280;
 /** Narrower than this, the tight row drops the rolls count — the right tray still shows it. */
 const TIGHT_ROLLS_WIDTH = 240;
 
+const GAME_OVER = 'Game over';
+
 function cpuLabel(type: PlayerType): string | null {
     switch (type) {
         case 'SAFE_SAM': return 'Sam (AI)';
@@ -71,6 +75,7 @@ function PlateHud({
     playerType,
     playerColor,
     rollsLeft,
+    gameOver = false,
     theme,
     plate,
     onShowRules,
@@ -79,7 +84,7 @@ function PlateHud({
     muted,
     onToggleSound,
 }: LayoutProps) {
-    const ai = cpuLabel(playerType);
+    const ai = gameOver ? null : cpuLabel(playerType);
 
     // Inset so the plate's own rim still frames the panel.
     const inset = Math.round(plate.height * 0.08);
@@ -117,12 +122,14 @@ function PlateHud({
 
     const who = (
         <div className="flex items-center min-w-0" style={{ gap: gap }}>
-            <span
-                className="rounded-full animate-pulse shrink-0 ring-1 ring-white/40"
-                style={{ backgroundColor: playerColor, width: nameSize * 0.6, height: nameSize * 0.6 }}
-            />
+            {!gameOver && (
+                <span
+                    className="rounded-full animate-pulse shrink-0 ring-1 ring-white/40"
+                    style={{ backgroundColor: playerColor, width: nameSize * 0.6, height: nameSize * 0.6 }}
+                />
+            )}
             <span className="font-black truncate leading-none" style={{ fontSize: nameSize, color: theme.text }}>
-                {playerName}
+                {gameOver ? GAME_OVER : playerName}
             </span>
             {ai && (
                 <span
@@ -225,6 +232,7 @@ function StripHud({
     playerType,
     playerColor,
     rollsLeft,
+    gameOver = false,
     compact,
     rightInset = 0,
     onShowRules,
@@ -233,7 +241,7 @@ function StripHud({
     muted,
     onToggleSound,
 }: LayoutProps) {
-    const ai = cpuLabel(playerType);
+    const ai = gameOver ? null : cpuLabel(playerType);
     const panel = 'backdrop-blur-md bg-black/60 border border-white/10 shadow-xl rounded-2xl';
     const btn =
         'pointer-events-auto backdrop-blur-md bg-black/60 border border-white/10 hover:border-white/25 text-white rounded-2xl shadow-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center';
@@ -251,20 +259,22 @@ function StripHud({
                 }`}
             >
                 <div className="flex flex-col min-w-0">
-                    {!compact && (
+                    {!compact && !gameOver && (
                         <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">
                             Active Player
                         </span>
                     )}
                     <div className="flex items-center gap-2 mt-0.5 min-w-0">
-                        <span
-                            className="w-2.5 h-2.5 rounded-full animate-pulse shrink-0 ring-1 ring-white/30"
-                            style={{ backgroundColor: playerColor }}
-                        />
+                        {!gameOver && (
+                            <span
+                                className="w-2.5 h-2.5 rounded-full animate-pulse shrink-0 ring-1 ring-white/30"
+                                style={{ backgroundColor: playerColor }}
+                            />
+                        )}
                         <span
                             className={`font-black text-white truncate ${compact ? 'text-sm' : 'text-base'}`}
                         >
-                            {playerName}
+                            {gameOver ? GAME_OVER : playerName}
                         </span>
                         {ai && (
                             <span className="px-1.5 py-0.5 rounded-md bg-yellow-500/20 text-yellow-400 font-extrabold text-[9px] border border-yellow-500/30 uppercase tracking-wider shrink-0">

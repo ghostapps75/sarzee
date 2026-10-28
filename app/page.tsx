@@ -201,6 +201,9 @@ export default function Page() {
     if (!gameState || !viewport.ready) return <div className="fixed inset-0 bg-black" />;
 
     const celebrating = showCelebration || showNancyCelebration;
+    // `activePlayer` wraps back to the first seat when the last card fills, but nobody is
+    // on turn once the game is over, so nobody is highlighted.
+    const gameOver = phase === 'GAME_OVER';
     const stacked = viewport.mode === 'stack';
     /** Width of the scorecard rail covering the right of the board, or 0 when stacked. */
     const railInset = stacked ? 0 : viewport.railWidth;
@@ -220,7 +223,7 @@ export default function Page() {
         upperBonuses,
         yahtzeeBonuses,
         totals,
-        activePlayerIndex: activePlayer,
+        activePlayerIndex: gameOver ? -1 : activePlayer,
         potentialScores,
         canSelectCategory,
         onSelectCategory: game.selectCategory,
@@ -276,6 +279,7 @@ export default function Page() {
                     playerType={playerTypes[activePlayer] ?? 'HUMAN'}
                     playerColor={playerDiceColors[activePlayer] || '#FFFFFF'}
                     rollsLeft={shownRollsLeft}
+                    gameOver={gameOver}
                     theme={board.theme}
                     plate={titlePlate}
                     compact={compact}
@@ -336,7 +340,7 @@ export default function Page() {
                 </aside>
             )}
 
-            {phase === 'GAME_OVER' && (
+            {gameOver && (
                 <GameOverOverlay
                     playerNames={customNames}
                     totals={totals}
