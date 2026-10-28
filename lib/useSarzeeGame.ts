@@ -447,6 +447,14 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
     const upperBonuses = useMemo(() => allStates.map((s) => s.upperBonus), [allStates]);
     const yahtzeeBonuses = useMemo(() => allStates.map((s) => s.yahtzeeBonus), [allStates]);
 
+    /**
+     * Rolls left as the table shows them, in the HUD and the tray lamps. The engine spends
+     * the roll the moment ROLL is pressed; the display waits until the dice have landed,
+     * so the count goes down with the roll rather than a second and a half before it. The
+     * engine's own count is untouched: the rules and the CPU read that one.
+     */
+    const shownRollsLeft = !gameState || gameState.isGameOver ? 0 : gameState.rollsLeft + (isRolling ? 1 : 0);
+
     const isHumanTurn = playerTypes[activePlayer] === 'HUMAN';
     const canInteractDice = !!gameState && !isRolling && gameState.rollsLeft < 3 && isHumanTurn;
     const canSelectCategory = canInteractDice;
@@ -477,6 +485,7 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         potentialScores,
         setPotentialScores,
         isRolling,
+        shownRollsLeft,
         canInteractDice,
         canSelectCategory,
         isHumanTurn,

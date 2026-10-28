@@ -74,6 +74,7 @@ export default function Page() {
         playerTypes,
         playerDiceColors,
         isRolling,
+        shownRollsLeft,
         showCelebration,
         setShowCelebration,
         showNancyCelebration,
@@ -252,7 +253,7 @@ export default function Page() {
                 gameState.isGameOver ||
                 playerTypes[activePlayer] !== 'HUMAN'
             }
-            rollsLeft={gameState.isGameOver ? 0 : gameState.rollsLeft}
+            rollsLeft={shownRollsLeft}
             feltOverlay={
                 celebrating ? (
                     <>
@@ -274,7 +275,7 @@ export default function Page() {
                     playerName={customNames[activePlayer] || `Player ${activePlayer + 1}`}
                     playerType={playerTypes[activePlayer] ?? 'HUMAN'}
                     playerColor={playerDiceColors[activePlayer] || '#FFFFFF'}
-                    rollsLeft={gameState.rollsLeft}
+                    rollsLeft={shownRollsLeft}
                     theme={board.theme}
                     plate={titlePlate}
                     compact={compact}
