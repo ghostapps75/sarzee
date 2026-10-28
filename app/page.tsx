@@ -85,7 +85,37 @@ export default function Page() {
         highScorePlaces,
         riggedRoll,
         armRiggedRoll,
+        toggleHold,
     } = game;
+
+    // Keys 1 to 5 hold and release the dice, for the human on turn: only between rolls
+    // (after the third there is nothing left to hold for), never for a CPU, and not while
+    // a celebration has the table or a drawer is open. Digits typed into a field are left
+    // alone, Shift combinations belong to the dev shortcuts, and the typed rig words are
+    // letters, so none of them collide.
+    const holdKeysLive =
+        phase === 'PLAYING' &&
+        canInteractDice &&
+        (gameState?.rollsLeft ?? 0) > 0 &&
+        !showCelebration &&
+        !showNancyCelebration &&
+        !showRules &&
+        !showStats;
+    useEffect(() => {
+        if (!holdKeysLive) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.repeat || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+            const t = e.target as HTMLElement | null;
+            const tag = t?.tagName?.toLowerCase();
+            if (tag === 'input' || tag === 'textarea' || tag === 'select' || t?.isContentEditable) return;
+            const die = '12345'.indexOf(e.key);
+            if (die < 0) return;
+            e.preventDefault();
+            toggleHold(die);
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [holdKeysLive, toggleHold]);
 
     // Hidden test keystroke, in every build: type "sarzee" or "nancy" during a game and the
     // next roll (or, for a Nancy, the next opening roll) is dealt that result, so the
@@ -290,6 +320,38 @@ export default function Page() {
                 />
             )}
         >
+            {/* The holds for keyboards and screen readers: one toggle per die, out of sight
+                until one of them has focus. Tapping a die on the table does the same. */}
+            <div
+                className="absolute z-40 -translate-x-1/2"
+                style={{ left: 'var(--felt-cx)', top: 'calc(var(--felt-top) + 8px)' }}
+            >
+                <div role="group" aria-label="Hold dice" className="sr-only focus-within:not-sr-only flex gap-1.5">
+                    {gameState.diceValues.map((value, i) => {
+                        const held = gameState.heldDice[i];
+                        return (
+                            <button
+                                key={i}
+                                type="button"
+                                disabled={!holdKeysLive}
+                                aria-pressed={held}
+                                aria-label={holdKeysLive ? `Hold die ${i + 1}, showing ${value}` : `Hold die ${i + 1}`}
+                                onClick={() => toggleHold(i)}
+                                className="w-8 h-8 rounded-lg border-2 font-black text-sm cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 shadow-lg"
+                                style={{
+                                    background: held ? '#fbbf24' : 'rgba(0,0,0,0.75)',
+                                    color: held ? '#111' : '#fff',
+                                    borderColor: held ? '#fbbf24' : 'rgba(255,255,255,0.35)',
+                                    outlineColor: board.theme.focus,
+                                }}
+                            >
+                                <span aria-hidden>{value}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
             {cpu.isThinking && cpu.message && !celebrating && (
                 <div
                     className={`absolute -translate-x-1/2 z-40 pointer-events-none animate-in fade-in-0 duration-300 max-w-[92%] ${

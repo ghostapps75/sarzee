@@ -201,7 +201,7 @@ async function main() {
         await loaded;
 
         // Setup: board, one player, optional dice colour, launch.
-        const boardCard = `[...document.querySelectorAll('h3')].find(e => e.textContent.trim() === ${JSON.stringify(board.name)}).closest('.group')`;
+        const boardCard = `document.querySelector('button[data-board=${JSON.stringify(board.id)}]')`;
         await waitFor(`!!${boardCard}`);
         await click(boardCard);
         await waitFor(`!!${buttonByText('1')}`);

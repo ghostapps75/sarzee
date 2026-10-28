@@ -82,6 +82,7 @@ export default function RulesDrawer({ isOpen, onClose, theme: themeColors }: Rul
                 <div>
                   <h4 className="font-semibold text-white">Hold Dice</h4>
                   <p className="text-xs text-gray-400">Toggle lock/hold on any number of dice to save their values for subsequent rolls.</p>
+                  <p className="text-xs text-gray-400 mt-1">On a keyboard, keys <strong className="text-white">1</strong> to <strong className="text-white">5</strong> hold and release the five dice.</p>
                 </div>
               </div>
               <div className="flex gap-3 items-start">

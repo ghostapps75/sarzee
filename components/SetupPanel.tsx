@@ -159,38 +159,43 @@ export default function SetupPanel({
                   Select Tabletop Arena
                 </h2>
                 {/* px-3 covers a card's hover:scale-[1.02] (up to ~7px a side on a full-width
-                    card) so it stays inside the padding box instead of adding a scrollbar. */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto overflow-x-hidden px-3 py-1 scrollbar-thin">
+                    card) so it stays inside the padding box instead of adding a scrollbar; py-1.5
+                    leaves the same room for a focused card's ring. */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto overflow-x-hidden px-3 py-1.5 scrollbar-thin">
                   {BOARDS.map((board) => {
                     const isActive = board.id === selectedBoard;
                     return (
-                      <div
+                      <button
                         key={board.id}
+                        type="button"
+                        data-board={board.id}
+                        aria-pressed={isActive}
                         onClick={() => handleBoardSelect(board.id)}
-                        className={`group relative rounded-2xl p-4 border cursor-pointer overflow-hidden transition-all duration-300 hover:scale-[1.02] flex gap-4 items-center`}
+                        className={`group relative rounded-2xl p-4 border cursor-pointer overflow-hidden transition-all duration-300 hover:scale-[1.02] flex gap-4 items-center text-left focus-visible:outline-2 focus-visible:outline-offset-2`}
                         style={{
                           backgroundColor: isActive ? `${themeColors.border}20` : 'rgba(255,255,255,0.02)',
                           borderColor: isActive ? themeColors.border : 'rgba(255,255,255,0.08)',
                           boxShadow: isActive ? `0 0 20px ${themeColors.border}20` : 'none',
+                          outlineColor: themeColors.focus,
                         }}
                       >
                         {/* Little Miniature Board Image */}
-                        <div
-                          className="w-16 h-16 rounded-xl border shrink-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
+                        <span
+                          className="block w-16 h-16 rounded-xl border shrink-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
                           style={{
                             backgroundImage: `url(/textures/${board.file})`,
                             borderColor: isActive ? themeColors.border : 'rgba(255,255,255,0.1)',
                           }}
                         />
-                        <div className="flex flex-col">
-                          <h3 className="font-bold text-white text-base group-hover:text-yellow-400 transition-colors">
+                        <span className="flex flex-col">
+                          <span className="font-bold text-white text-base group-hover:text-yellow-400 group-focus-visible:text-yellow-400 transition-colors">
                             {board.name}
-                          </h3>
-                          <p className="text-xs text-gray-400 mt-1 leading-normal">
+                          </span>
+                          <span className="text-xs text-gray-400 mt-1 leading-normal">
                             {board.description}
-                          </p>
-                        </div>
-                      </div>
+                          </span>
+                        </span>
+                      </button>
                     );
                   })}
                 </div>
@@ -207,11 +212,12 @@ export default function SetupPanel({
                     <button
                       key={n}
                       onClick={() => handlePlayerCountSelect(n)}
-                      className="w-20 h-20 font-black rounded-2xl shadow-xl text-3xl transition-all transform hover:scale-110 active:scale-95 border-2 flex items-center justify-center cursor-pointer"
+                      className="w-20 h-20 font-black rounded-2xl shadow-xl text-3xl transition-all transform hover:scale-110 focus-visible:scale-110 active:scale-95 border-2 flex items-center justify-center cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4"
                       style={{
                         background: `linear-gradient(to bottom, ${themeColors.buttonGradientFrom}, ${themeColors.buttonGradientTo})`,
                         color: themeColors.buttonText,
                         borderColor: themeColors.buttonBorder,
+                        outlineColor: themeColors.focus,
                         boxShadow: `0 10px 25px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1), 0 0 15px ${themeColors.border}15`,
                       }}
                       onMouseEnter={(e) => {
@@ -322,10 +328,11 @@ export default function SetupPanel({
                                 <button
                                   key={opt.hex}
                                   onClick={() => updatePlayerColor(idx, opt.hex)}
-                                  className={`w-7 h-7 rounded-lg border-2 transition-all transform hover:scale-110 cursor-pointer ${
+                                  className={`w-7 h-7 rounded-lg border-2 transition-all transform hover:scale-110 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:opacity-100 ${
                                     isSel ? 'scale-110 shadow-md' : 'opacity-70 hover:opacity-100'
                                   }`}
                                   style={{
+                                    outlineColor: themeColors.focus,
                                     backgroundColor: opt.hex,
                                     // Unselected swatches get a faint edge so a white or
                                     // near-black die still reads as a swatch on the dark card.
