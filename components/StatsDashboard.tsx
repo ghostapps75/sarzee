@@ -3,6 +3,8 @@ import { BoardTheme } from '@/lib/boards';
 import {
   ImportResult,
   MatchLog,
+  bestHumanScore,
+  bestHumanScoreByMatch,
   clearMatchLogs,
   importMatchLogs,
   isDrawLog,
@@ -25,8 +27,6 @@ type Tab = 'overview' | 'highScores';
 const MAX_LOAD_BYTES = 2_000_000;
 
 function summarize(logs: MatchLog[]) {
-  let highestScore = 0;
-  let highestScorer = 'N/A';
   let totalSarzees = 0;
   let totalNancys = 0;
   let humanGames = 0;
@@ -37,12 +37,6 @@ function summarize(logs: MatchLog[]) {
     totalNancys += log.nancyCount || 0;
 
     const players = Array.isArray(log.players) ? log.players : [];
-    players.forEach((p) => {
-      if (p.score > highestScore) {
-        highestScore = p.score;
-        highestScorer = p.name;
-      }
-    });
 
     // "Win rate (vs AI)" means a human beating the computer, so only games with both a
     // human and a CPU seat count. Solo and all-human games used to be counted too, and
@@ -59,8 +53,8 @@ function summarize(logs: MatchLog[]) {
 
   return {
     totalGames: logs.length,
-    highestScore,
-    highestScorer,
+    // Humans only, like the High Scores tab: a CPU's total is never anyone's best.
+    best: bestHumanScore(logs),
     totalSarzees,
     totalNancys,
     humanWinRate: humanGames > 0 ? Math.round((humanWins / humanGames) * 100) : 0,
@@ -142,9 +136,11 @@ export default function StatsDashboard({ isOpen, onClose, theme: themeColors }: 
     { id: 'highScores', label: 'High Scores' },
   ];
 
-  // Render glowing SVG line chart of scoring history (highest score of each match)
+  // Render glowing SVG line chart of scoring history (best human score of each match)
   const renderScoreChart = () => {
-    if (matchLogs.length === 0) {
+    // A CPU's total is never plotted; a match with only CPU seats has no point.
+    const scores = bestHumanScoreByMatch(matchLogs);
+    if (scores.length === 0) {
       // Return placeholder mockup path when empty
       return (
         <div className="w-full h-32 flex flex-col items-center justify-center border border-white/5 rounded-xl bg-white/2 p-4 text-center">
@@ -158,9 +154,6 @@ export default function StatsDashboard({ isOpen, onClose, theme: themeColors }: 
     const chartHeight = 120;
     const padding = 15;
 
-    // Get max score of each match to plot
-    const scores = matchLogs.map(log => Math.max(...log.players.map(p => p.score)));
-    
     // Scale data
     const maxVal = Math.max(...scores, 150); // benchmark floor of 150
     const minVal = Math.min(...scores, 50);
@@ -187,7 +180,7 @@ export default function StatsDashboard({ isOpen, onClose, theme: themeColors }: 
     return (
       <div className="w-full border border-white/5 rounded-2xl bg-black/40 p-4 relative overflow-hidden">
         <div className="text-[10px] font-bold text-gray-500 tracking-wider uppercase mb-2">
-          Scoring Ceiling Trend
+          Best Human Score, Each Match
         </div>
         <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-28 overflow-visible">
           <defs>
@@ -246,7 +239,7 @@ export default function StatsDashboard({ isOpen, onClose, theme: themeColors }: 
         </svg>
         <div className="flex justify-between text-[8px] text-gray-500 font-mono mt-1 px-1">
           <span>Min: {minVal} pts</span>
-          <span>{matchLogs.length} matches logged</span>
+          <span>{matches(scores.length)} plotted</span>
           <span>Max: {maxVal} pts</span>
         </div>
       </div>
@@ -412,10 +405,10 @@ export default function StatsDashboard({ isOpen, onClose, theme: themeColors }: 
               <div className="p-4 rounded-xl border border-white/5 bg-white/2 flex items-center justify-between">
                 <div>
                   <div className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">All-Time High Score</div>
-                  <div className="text-base font-bold text-white mt-1">{stats.highestScorer}</div>
+                  <div className="text-base font-bold text-white mt-1">{stats.best?.name ?? 'N/A'}</div>
                 </div>
                 <div className="text-3xl font-black bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent">
-                  {stats.highestScore} <span className="text-xs text-gray-500 uppercase tracking-tighter">pts</span>
+                  {stats.best?.score ?? 0} <span className="text-xs text-gray-500 uppercase tracking-tighter">pts</span>
                 </div>
               </div>
 
