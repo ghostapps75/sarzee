@@ -5,6 +5,7 @@ import React from 'react';
 import { PlayerType } from '@/lib/useSarzeeGame';
 import { BoardTheme } from '@/lib/boards';
 import { PxRect } from '@/lib/useBoardLayout';
+import { useSoundMuted } from '@/lib/useGameSounds';
 
 interface GameHudProps {
     playerName: string;
@@ -21,6 +22,17 @@ interface GameHudProps {
     onShowStats: () => void;
     onLeave: () => void;
 }
+
+/** The sound switch, read once here and handed to whichever layout is drawn. */
+interface SoundProps {
+    muted: boolean;
+    onToggleSound: () => void;
+}
+
+type LayoutProps = GameHudProps & SoundProps;
+
+const soundLabel = (muted: boolean) => (muted ? 'Unmute sounds' : 'Mute sounds');
+const soundIcon = (muted: boolean) => (muted ? '🔇' : '🔊');
 
 /** Below this the plate cannot hold a tappable row, so the HUD floats as a strip instead. */
 const MIN_PLATE_HEIGHT = 40;
@@ -42,14 +54,16 @@ function cpuLabel(type: PlayerType): string | null {
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /**
- * Who is up, plus Rules / Stats / Leave.
+ * Who is up, plus Rules / Stats / Sound / Leave.
  *
  * It sits inside the recessed title plate the artwork already provides, themed with the
  * board's colours, so it reads as part of the board instead of floating over it. On a
  * screen where the plate is too small to tap, it falls back to a compact strip.
  */
 export default function GameHud(props: GameHudProps) {
-    return props.plate.height >= MIN_PLATE_HEIGHT ? <PlateHud {...props} /> : <StripHud {...props} />;
+    const [muted, setMuted] = useSoundMuted();
+    const sound: SoundProps = { muted, onToggleSound: () => setMuted(!muted) };
+    return props.plate.height >= MIN_PLATE_HEIGHT ? <PlateHud {...props} {...sound} /> : <StripHud {...props} {...sound} />;
 }
 
 function PlateHud({
@@ -62,7 +76,9 @@ function PlateHud({
     onShowRules,
     onShowStats,
     onLeave,
-}: GameHudProps) {
+    muted,
+    onToggleSound,
+}: LayoutProps) {
     const ai = cpuLabel(playerType);
 
     // Inset so the plate's own rim still frames the panel.
@@ -78,8 +94,8 @@ function PlateHud({
     const labelSize = clamp(rowH * 0.3, 8, 12);
     const buttonText = clamp(rowH * 0.36, 10, 15);
     // In the single row the icon buttons are a little narrower than tall, which is what
-    // leaves room for a name on a phone-sized plate.
-    const iconW = rowH * 0.78;
+    // leaves room for a name on a phone-sized plate beside all four of them.
+    const iconW = rowH * 0.66;
 
     const themedButton: React.CSSProperties = {
         background: `linear-gradient(to bottom, ${theme.buttonGradientFrom}, ${theme.buttonGradientTo})`,
@@ -168,6 +184,10 @@ function PlateHud({
                             <span aria-hidden>📊</span>
                             <span>Stats</span>
                         </button>
+                        {/* Icon only, so the three labelled buttons keep their room. */}
+                        <button onClick={onToggleSound} aria-label={soundLabel(muted)} title={soundLabel(muted)} className={buttonClass} style={{ ...themedButton, width: rowH, fontSize: buttonText * 1.1 }}>
+                            <span aria-hidden>{soundIcon(muted)}</span>
+                        </button>
                         <button onClick={onLeave} aria-label="Leave game" className={`${buttonClass} flex-1`} style={{ ...ghostButton, fontSize: buttonText }}>
                             Leave
                         </button>
@@ -182,6 +202,9 @@ function PlateHud({
                     </button>
                     <button onClick={onShowStats} aria-label="Statistics" className={buttonClass} style={{ ...themedButton, width: iconW, height: rowH, fontSize: rowH * 0.42 }}>
                         <span aria-hidden>📊</span>
+                    </button>
+                    <button onClick={onToggleSound} aria-label={soundLabel(muted)} title={soundLabel(muted)} className={buttonClass} style={{ ...themedButton, width: iconW, height: rowH, fontSize: rowH * 0.42 }}>
+                        <span aria-hidden>{soundIcon(muted)}</span>
                     </button>
                     <button onClick={onLeave} aria-label="Leave game" className={buttonClass} style={{ ...ghostButton, width: iconW, height: rowH, fontSize: rowH * 0.4 }}>
                         <span aria-hidden>✕</span>
@@ -207,7 +230,9 @@ function StripHud({
     onShowRules,
     onShowStats,
     onLeave,
-}: GameHudProps) {
+    muted,
+    onToggleSound,
+}: LayoutProps) {
     const ai = cpuLabel(playerType);
     const panel = 'backdrop-blur-md bg-black/60 border border-white/10 shadow-xl rounded-2xl';
     const btn =
@@ -281,6 +306,14 @@ function StripHud({
                 >
                     <span aria-hidden>📊</span>
                     {!compact && <span>Stats</span>}
+                </button>
+                <button
+                    onClick={onToggleSound}
+                    aria-label={soundLabel(muted)}
+                    title={soundLabel(muted)}
+                    className={`${btn} ${compact ? 'w-10 h-10 text-base' : 'px-4 py-3 text-xs'}`}
+                >
+                    <span aria-hidden>{soundIcon(muted)}</span>
                 </button>
                 <button
                     onClick={onLeave}

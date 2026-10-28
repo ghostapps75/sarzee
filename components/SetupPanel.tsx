@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CpuPersonality } from '@/lib/CpuAgent';
 import { BOARDS, getBoard } from '@/lib/boards';
+import { useSoundMuted } from '@/lib/useGameSounds';
 
 interface SetupPanelProps {
   selectedBoard: string;
@@ -28,6 +29,7 @@ export default function SetupPanel({
   onStartGame,
 }: SetupPanelProps) {
   const [step, setStep] = useState<'BOARD' | 'COUNT' | 'PLAYERS'>('BOARD');
+  const [muted, setMuted] = useSoundMuted();
   const boardOption = getBoard(selectedBoard);
   const themeColors = boardOption.theme;
 
@@ -112,13 +114,24 @@ export default function SetupPanel({
       <div className="relative z-10 w-full max-w-4xl max-h-[92vh] flex flex-col items-center">
         {/* Main Frosted Container */}
         <div
-          className="w-full flex flex-col rounded-3xl border shadow-2xl backdrop-blur-xl p-8 md:p-10 overflow-hidden transition-all duration-500"
+          className="relative w-full flex flex-col rounded-3xl border shadow-2xl backdrop-blur-xl p-8 md:p-10 overflow-hidden transition-all duration-500"
           style={{
             backgroundColor: 'rgba(15, 15, 20, 0.75)',
             borderColor: `${themeColors.border}30`,
             boxShadow: `0 20px 80px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 40px ${themeColors.border}10`,
           }}
         >
+          {/* The same switch as the one in the game's HUD. */}
+          <button
+            type="button"
+            onClick={() => setMuted(!muted)}
+            aria-label={muted ? 'Unmute sounds' : 'Mute sounds'}
+            title={muted ? 'Unmute sounds' : 'Mute sounds'}
+            className="absolute top-4 right-4 w-9 h-9 rounded-lg flex items-center justify-center bg-white/5 hover:bg-white/10 text-base transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{ outlineColor: themeColors.focus }}
+          >
+            <span aria-hidden>{muted ? '🔇' : '🔊'}</span>
+          </button>
           {/* Header Title with animated gradient clip */}
           <div className="text-center mb-8 shrink-0">
             <h1
