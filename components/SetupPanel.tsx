@@ -164,19 +164,19 @@ export default function SetupPanel({
               SARZEE
             </h1>
             <p className="text-gray-400 text-xs md:text-sm tracking-widest mt-2 uppercase">
-              Premium 3D Physics Tabletop Arena
+              A dice game for friends and family
             </p>
           </div>
 
           {/* Setup Steps content - scrollable internally. Vertical only: overflow-y-auto alone
-              makes overflow-x auto too, so Launch Arena's hover scale, reaching past the edge,
+              makes overflow-x auto too, so the start button's hover scale, reaching past the edge,
               flashed a scrollbar that shifted it off the pointer. -m-2 p-2 gives that growth
               room to land in on every side without moving the content. */}
           <div className="flex-1 overflow-y-auto overflow-x-hidden -m-2 p-2 select-none scrollbar-thin">
             {step === 'BOARD' && (
               <div className="animate-in fade-in-50 slide-in-from-bottom-5 duration-300">
                 <h2 className="text-lg md:text-xl font-bold text-white text-center mb-6 uppercase tracking-wider">
-                  Select Tabletop Arena
+                  Pick a board
                 </h2>
                 {/* px-3 covers a card's hover:scale-[1.02] (up to ~7px a side on a full-width
                     card) so it stays inside the padding box instead of adding a scrollbar; py-1.5
@@ -265,7 +265,7 @@ export default function SetupPanel({
             {step === 'PLAYERS' && (
               <div className="animate-in fade-in-50 slide-in-from-bottom-5 duration-300">
                 <h2 className="text-lg md:text-xl font-bold text-white text-center mb-6 uppercase tracking-wider">
-                  Configure Players & Personalities
+                  Who&apos;s playing?
                 </h2>
                 <div className="flex flex-col gap-5 mx-auto mb-6 p-1 max-h-[46vh] overflow-y-auto overflow-x-hidden scrollbar-thin">
                   {customNames.map((name, idx) => {
@@ -398,7 +398,7 @@ export default function SetupPanel({
                       e.currentTarget.style.borderColor = themeColors.buttonBorder;
                     }}
                   >
-                    Launch Arena
+                    Let&apos;s roll
                   </button>
                 </div>
               </div>

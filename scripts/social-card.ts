@@ -206,9 +206,9 @@ async function main() {
         await click(boardCard);
         await waitFor(`!!${buttonByText('1')}`);
         await click(buttonByText('1'));
-        await waitFor(`!!${buttonByText('Launch Arena')}`);
+        await waitFor(`!!${buttonByText("Let's roll")}`);
         if (dice) await click(`document.querySelector('button[aria-label=${JSON.stringify(dice + ' dice')}]')`);
-        await click(buttonByText('Launch Arena'));
+        await click(buttonByText("Let's roll"));
         await waitFor(`!!${ROLL}`, 30000);
         await sleep(1500); // textures
 

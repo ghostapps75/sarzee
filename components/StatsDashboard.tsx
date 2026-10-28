@@ -95,7 +95,7 @@ export default function StatsDashboard({ isOpen, onClose, theme: themeColors }: 
   const highScores = useMemo(() => topScores(matchLogs), [matchLogs]);
 
   const clearHistory = () => {
-    if (window.confirm('Are you sure you want to purge all local match records?')) {
+    if (window.confirm('Clear every game on record in this browser? High scores go too, and this cannot be undone.')) {
       clearMatchLogs();
       setMatchLogs([]);
       setNotice(null);
@@ -144,8 +144,8 @@ export default function StatsDashboard({ isOpen, onClose, theme: themeColors }: 
       // Return placeholder mockup path when empty
       return (
         <div className="w-full h-32 flex flex-col items-center justify-center border border-white/5 rounded-xl bg-white/2 p-4 text-center">
-          <p className="text-xs text-gray-500">No match records compiled yet.</p>
-          <p className="text-[10px] text-gray-600 mt-1">Play matches to construct dynamic performance chart.</p>
+          <p className="text-xs text-gray-500">No games with a human player yet.</p>
+          <p className="text-[10px] text-gray-600 mt-1">Finish a game and its best score appears here.</p>
         </div>
       );
     }
@@ -468,9 +468,9 @@ export default function StatsDashboard({ isOpen, onClose, theme: themeColors }: 
             onClick={clearHistory}
             className="text-[10px] font-bold text-red-500/80 hover:text-red-400 uppercase tracking-wider cursor-pointer"
           >
-            Clear Log Data
+            Clear History
           </button>
-          <div className="text-[10px] text-gray-600">Sarzee Metrics</div>
+          <div className="text-[10px] text-gray-600">Sarzee · 2026</div>
         </div>
       </div>
     </>

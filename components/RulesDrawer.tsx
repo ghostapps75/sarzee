@@ -60,7 +60,7 @@ export default function RulesDrawer({ isOpen, onClose, theme: themeColors }: Rul
               <span style={{ color: themeColors.text }}>Scoresheet</span>
             </h3>
             <p className="leading-relaxed text-gray-400">
-              Roll 5 physics-based 3D dice across 13 consecutive turns to build high-scoring combinations. Complete all categories on your scorecard to achieve the ultimate high score.
+              Everyone gets 13 turns. Each turn, roll the five dice up to three times, then write the result in one open box on your card. When every box is filled, the highest total wins.
             </p>
           </div>
 
@@ -74,7 +74,7 @@ export default function RulesDrawer({ isOpen, onClose, theme: themeColors }: Rul
                 <span className="w-5 h-5 rounded bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">1</span>
                 <div>
                   <h4 className="font-semibold text-white">First Roll</h4>
-                  <p className="text-xs text-gray-400">Roll all 5 dice into the tabletop arena.</p>
+                  <p className="text-xs text-gray-400">Roll all 5 dice onto the felt.</p>
                 </div>
               </div>
               <div className="flex gap-3 items-start">
@@ -192,7 +192,7 @@ export default function RulesDrawer({ isOpen, onClose, theme: themeColors }: Rul
           className="p-6 border-t text-center text-xs text-gray-500 shrink-0"
           style={{ borderColor: `${themeColors.border}20` }}
         >
-          Sarzee Premium Edition © 2026
+          Sarzee · 2026
         </div>
       </div>
     </>
