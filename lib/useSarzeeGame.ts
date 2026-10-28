@@ -465,7 +465,6 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         selectedBoard,
         setSelectedBoard,
         board: getBoard(selectedBoard),
-        playerCount,
         setPlayerCount,
         customNames,
         setCustomNames,
@@ -488,7 +487,6 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         shownRollsLeft,
         canInteractDice,
         canSelectCategory,
-        isHumanTurn,
 
         // actions
         startGame,
