@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import type { DiceArenaHandle } from '@/components/DiceArena';
-import BoardStage from '@/components/BoardStage';
 import GameHud from '@/components/GameHud';
 import GameOverOverlay from '@/components/GameOverOverlay';
 import ScoreTable from '@/components/ScoreTable';
@@ -15,6 +15,18 @@ import { useSarzeeGame } from '@/lib/useSarzeeGame';
 import { useCpuTurn } from '@/lib/useCpuTurn';
 import { useViewport } from '@/lib/useBoardLayout';
 import { useGameSounds } from '@/lib/useGameSounds';
+
+/**
+ * The board and its 3D dice (three.js, react-three-fiber, cannon-es) are most of the page's
+ * weight, so they load on demand: the setup screen paints without them, and Page starts the
+ * download while the player is still choosing a board, so it is usually in by the start.
+ */
+const loadBoardStage = () => import('@/components/BoardStage');
+const BoardStage = dynamic(loadBoardStage, {
+    ssr: false,
+    // Until it arrives, the stage's box stays empty over the page's black.
+    loading: () => <div className="absolute inset-0" />,
+});
 
 /** Loaded on demand — jsPDF and html-to-image are large and only needed at game over. */
 const importExportTools = async () => {
@@ -116,6 +128,12 @@ export default function Page() {
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, [holdKeysLive, toggleHold]);
+
+    // Fetch the board's code once setup is on screen, not before it.
+    useEffect(() => {
+        const t = setTimeout(() => void loadBoardStage(), 300);
+        return () => clearTimeout(t);
+    }, []);
 
     // Hidden test keystroke, in every build: type "sarzee" or "nancy" during a game and the
     // next roll (or, for a Nancy, the next opening roll) is dealt that result, so the

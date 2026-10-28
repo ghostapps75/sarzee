@@ -3,7 +3,8 @@
 import React, { RefObject, useEffect, useRef } from 'react';
 import type { DiceArenaHandle, SarzeeCue } from './DiceArena';
 import { BoardTheme } from '@/lib/boards';
-import { DIE_SIZE } from '@/lib/dieFaces';
+// Not lib/dieFaces, which brings three.js with it into the page's first load.
+import { DIE_SIZE } from '@/lib/dieSize';
 import { CelebrationFrame, useCelebrationClock, useElementSize } from '@/lib/useCelebrationClock';
 
 type Props = {
