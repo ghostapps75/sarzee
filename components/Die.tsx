@@ -48,6 +48,12 @@ const MIN_TAP_SCALE = 1.12;
 /** The colour a die flashes when it glints; scaled by `fx.glow`. */
 const GLINT_COLOR = '#fff1c4';
 const GLINT_STRENGTH = 0.6;
+/**
+ * A white or cream die is already as bright as it gets, so a glow alone barely shows on
+ * it. The glint also warms the body towards gold, which reads on light and dark dice alike.
+ */
+const GLINT_GOLD = new THREE.Color('#ffae00');
+const GLINT_GOLD_STRENGTH = 0.7;
 
 /**
  * How far apart a board's signature pip colour and the die's colour must be, in perceived
@@ -193,6 +199,7 @@ function Die({
             pipColor: usableSignature ? signature : autoPip,
         };
     }, [boardId, color, isHeld]);
+    const bodyColor = useMemo(() => new THREE.Color(skin.color), [skin.color]);
 
     // The pose vectors are mutated in place by the arena, so copy them onto the
     // three.js objects every frame rather than reacting to prop changes.
@@ -202,7 +209,12 @@ function Die({
         g.position.copy(position);
         g.quaternion.copy(quaternion);
         g.visible = fx ? fx.visible : true;
-        if (bodyRef.current) bodyRef.current.emissiveIntensity = (fx?.glow ?? 0) * GLINT_STRENGTH;
+        const body = bodyRef.current;
+        if (body) {
+            const glow = fx?.glow ?? 0;
+            body.emissiveIntensity = glow * GLINT_STRENGTH;
+            body.color.copy(bodyColor).lerp(GLINT_GOLD, glow * GLINT_GOLD_STRENGTH);
+        }
 
         const faces = faceGroupRef.current;
         if (faces) {
