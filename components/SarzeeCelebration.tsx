@@ -206,7 +206,6 @@ export default function SarzeeCelebration({ arenaRef, theme, onDismiss }: Props)
         if (!staticTitle || sizeRef.current.h <= 0) return;
         const halfTitle = (fontSize * 0.6) / sizeRef.current.h;
         // The dice positions live in the arena, outside React, so they are read once here.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setStillTitleY(titleClearOfDice(arenaRef.current?.dicePoints() ?? [], halfTitle));
     }, [staticTitle, fontSize, arenaRef]);
     const titleY = reduced ? stillTitleY : TITLE_Y;
