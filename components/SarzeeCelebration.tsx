@@ -1,9 +1,10 @@
 'use client';
 
-import React, { RefObject, useEffect, useRef } from 'react';
-import type { DiceArenaHandle, SarzeeCue } from './DiceArena';
+import React, { RefObject, useEffect, useRef, useState } from 'react';
+import type { DiceArenaHandle, DiePoint, SarzeeCue } from './DiceArena';
 import { BoardTheme } from '@/lib/boards';
-import { DIE_SIZE } from '@/lib/dieFaces';
+// Not lib/dieFaces, which brings three.js with it into the page's first load.
+import { DIE_SIZE } from '@/lib/dieSize';
 import { CelebrationFrame, useCelebrationClock, useElementSize } from '@/lib/useCelebrationClock';
 
 type Props = {
@@ -51,6 +52,25 @@ const LETTERS = TITLE.split('');
 const DIE_FRAC = DIE_SIZE / 10;
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+
+/**
+ * Where the title's middle goes under reduced motion, as a fraction of the felt's height.
+ * Nothing moves then, so the dice stay where they landed, and a die near the top of the
+ * felt would sit under the title. It keeps its usual place when that is clear, and
+ * otherwise takes the band of felt the dice leave most room in. `halfTitle` is half the
+ * title's height in the same units.
+ */
+function titleClearOfDice(points: DiePoint[], halfTitle: number): number {
+    const shown = points.filter((p) => p.visible);
+    const reach = halfTitle + DIE_FRAC / 2;
+    const clearance = (y: number) => Math.min(Infinity, ...shown.map((p) => Math.abs(p.y - y))) - reach;
+    if (clearance(TITLE_Y) >= 0) return TITLE_Y;
+    let best = TITLE_Y;
+    for (let y = halfTitle; y <= 1 - halfTitle; y += 0.01) {
+        if (clearance(y) > clearance(best)) best = y;
+    }
+    return best;
+}
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const easeOutCubic = (x: number) => 1 - Math.pow(1 - x, 3);
 
@@ -178,8 +198,17 @@ export default function SarzeeCelebration({ arenaRef, theme, onDismiss }: Props)
     });
 
     const fontSize = Math.max(18, Math.min(size.h * 0.2, size.w * 0.15));
-    // Reduced motion: the title alone, still, for as long as the cue plays.
+    // Reduced motion: the title alone, still, for as long as the cue plays, placed clear of
+    // the dice once it starts.
     const staticTitle = reduced && started;
+    const [stillTitleY, setStillTitleY] = useState<number | null>(null);
+    useEffect(() => {
+        if (!staticTitle || sizeRef.current.h <= 0) return;
+        const halfTitle = (fontSize * 0.6) / sizeRef.current.h;
+        // The dice positions live in the arena, outside React, so they are read once here.
+        setStillTitleY(titleClearOfDice(arenaRef.current?.dicePoints() ?? [], halfTitle));
+    }, [staticTitle, fontSize, arenaRef]);
+    const titleY = reduced ? stillTitleY : TITLE_Y;
 
     return (
         <div ref={rootRef} className="absolute inset-0">
@@ -217,10 +246,10 @@ export default function SarzeeCelebration({ arenaRef, theme, onDismiss }: Props)
             </div>
 
             {/* Over the dice: the title. A title over the table, not a card. */}
-            {size.h > 0 && (
+            {size.h > 0 && titleY !== null && (
                 <div
                     className="absolute inset-x-0 z-20 flex justify-center"
-                    style={{ top: size.h * TITLE_Y - fontSize * 0.6 }}
+                    style={{ top: size.h * titleY - fontSize * 0.6 }}
                 >
                     <div
                         ref={titleRef}

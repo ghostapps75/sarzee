@@ -216,6 +216,28 @@ export function topScores(logs: MatchLog[], limit = HIGH_SCORE_LIMIT): HighScore
 }
 
 /**
+ * The best human total on record, for the Overview's "All-Time High Score": the top line of
+ * the high score board, so the two can never disagree. Null until a human has finished a game.
+ */
+export function bestHumanScore(logs: MatchLog[]): HighScoreEntry | null {
+    return topScores(logs, 1)[0] ?? null;
+}
+
+/**
+ * Each match's best human total, in the order the matches are stored, for the Overview's
+ * chart. A match with only CPU seats is left out rather than plotted from a CPU's score.
+ */
+export function bestHumanScoreByMatch(logs: MatchLog[]): number[] {
+    const best: number[] = [];
+    for (const log of logs) {
+        if (!log || !Array.isArray(log.players)) continue;
+        const human = log.players.filter((p) => p && p.isCpu === false && isPossibleScore(p.score)).map((p) => p.score);
+        if (human.length > 0) best.push(Math.max(...human));
+    }
+    return best;
+}
+
+/**
  * Where each seat of a match that has just ended lands on the board: 1 for the top, up to
  * `limit`, or null if it doesn't make it (always, for a CPU). Measured against the records
  * as they stood before this match was saved, with this match added, so a tie with an older

@@ -8,6 +8,7 @@
  *   5. Trimming old records never drops one that holds a place on the board.
  *   6. A saved file reads back; records that don't fit the shape are left out.
  *   7. Loading merges by id, so the same file twice adds nothing.
+ *   8. The Overview's best score and chart never use a CPU's total.
  *
  * Run with:  npx tsx lib/matchLog.test.ts
  */
@@ -15,6 +16,8 @@ import assert from 'assert';
 import {
     EXPORT_VERSION,
     MatchLog,
+    bestHumanScore,
+    bestHumanScoreByMatch,
     boardPlacings,
     capMatchLogs,
     mergeMatchLogs,
@@ -213,7 +216,30 @@ testHumansOnly();
 testTies();
 testImpossibleTotals();
 testPlacings();
+function testOverview() {
+    console.log("Test 8: the Overview's best score and chart never use a CPU's total");
+    assert.strictEqual(bestHumanScore([]), null, 'nothing on record');
+    const cpuOnly = match(0, [['Robo', 380, true], ['Bot', 300, true]]);
+    assert.strictEqual(bestHumanScore([cpuOnly]), null, 'a CPU-only game crowns nobody');
+
+    const logs = [
+        match(1, [['Ann', 210, false], ['Robo', 400, true]]),
+        cpuOnly,
+        match(2, [['Bo', 250, false], ['Cy', 190, false], ['Rosie', 330, true]]),
+        match(3, [['Ann', 250, false]]),
+    ];
+    const best = bestHumanScore(logs);
+    assert.ok(best);
+    assert.deepStrictEqual([best.name, best.score], ['Bo', 250], 'the CPU 400 and 330 are passed over; the tie goes to the earlier game');
+    assert.deepStrictEqual(best, topScores(logs)[0], 'it is the top of the high score board');
+
+    assert.deepStrictEqual(bestHumanScoreByMatch(logs), [210, 250, 250], 'one point per match with a human, the best human in each');
+    assert.deepStrictEqual(bestHumanScoreByMatch([cpuOnly]), []);
+    console.log('  ok');
+}
+
 testCap();
 testSaveFile();
 testMerge();
+testOverview();
 console.log('All matchLog tests passed');

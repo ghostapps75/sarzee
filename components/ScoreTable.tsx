@@ -18,6 +18,7 @@ interface ScoreTableProps {
     upperBonuses: number[];
     yahtzeeBonuses: number[];
     totals: number[];
+    /** The seat on turn, highlighted on the pad. -1 when nobody is (the game is over). */
     activePlayerIndex: number;
     potentialScores: Record<ScoreCategory, number>;
     canSelectCategory: boolean;
@@ -184,7 +185,8 @@ export default function ScoreTable({
     // The tab being viewed follows the turn; picking another only lasts until the turn moves on.
     const [view, setView] = useState({ player: activePlayerIndex, turn: activePlayerIndex });
     if (view.turn !== activePlayerIndex) setView({ player: activePlayerIndex, turn: activePlayerIndex });
-    const viewedPlayer = view.turn === activePlayerIndex ? view.player : activePlayerIndex;
+    // With nobody on turn the tabs start on the first seat.
+    const viewedPlayer = Math.max(0, view.turn === activePlayerIndex ? view.player : activePlayerIndex);
 
     const players = playerNames.length;
     const tabbed = players > 1 && box.w > 0 && box.w < LABEL_MIN + players * COLUMN_MIN;

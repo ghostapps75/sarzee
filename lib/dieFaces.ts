@@ -1,12 +1,8 @@
 // lib/dieFaces.ts
 import * as THREE from 'three';
+import { DIE_SIZE } from './dieSize';
 
-/**
- * Edge length of a die, in world units. The arena is ARENA_WORLD_HEIGHT tall, so this is
- * the one number that decides how big dice look — pip size, corner rounding, resting
- * height, spacing and the physics collision box are all derived from it.
- */
-export const DIE_SIZE = 1.164;
+export { DIE_SIZE };
 export const DIE_HALF = DIE_SIZE / 2;
 
 /**

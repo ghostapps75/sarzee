@@ -1,18 +1,13 @@
 'use client';
 
-import React, { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { RoundedBox, Text } from '@react-three/drei';
 import { ThreeEvent, useFrame } from '@react-three/fiber';
 import { getBoard } from '@/lib/boards';
 import { DIE_HALF, DIE_PROPORTIONS, DIE_SIZE, HELD_SCALE, valueFromQuaternion } from '@/lib/dieFaces';
 
-export interface DieHandle {
-    getValue: () => number;
-}
-
 interface DieProps {
-    index: number;
     position: THREE.Vector3;
     quaternion: THREE.Quaternion;
     isHeld: boolean;
@@ -53,6 +48,12 @@ const MIN_TAP_SCALE = 1.12;
 /** The colour a die flashes when it glints; scaled by `fx.glow`. */
 const GLINT_COLOR = '#fff1c4';
 const GLINT_STRENGTH = 0.6;
+/**
+ * A white or cream die is already as bright as it gets, so a glow alone barely shows on
+ * it. The glint also warms the body towards gold, which reads on light and dark dice alike.
+ */
+const GLINT_GOLD = new THREE.Color('#ffae00');
+const GLINT_GOLD_STRENGTH = 0.7;
 
 /**
  * How far apart a board's signature pip colour and the die's colour must be, in perceived
@@ -138,149 +139,144 @@ const Face = ({ value, rotation, pipColor }: { value: number; rotation: [number,
     );
 };
 
-const Die = forwardRef<DieHandle, DieProps>(
-    (
-        {
-            position,
-            quaternion,
-            isHeld,
-            color = '#FFFFFF',
-            showDebugNumber = false,
-            canClick,
-            onClick,
-            boardId = 'the-cafe',
-            faceRotation,
-            tapScale = MIN_TAP_SCALE,
-            fx,
-        },
-        ref
-    ) => {
-        const groupRef = useRef<THREE.Group>(null);
-        const faceGroupRef = useRef<THREE.Group>(null);
-        const bodyRef = useRef<THREE.MeshStandardMaterial>(null);
-        const [debugValue, setDebugValue] = useState(1);
+function Die({
+    position,
+    quaternion,
+    isHeld,
+    color = '#FFFFFF',
+    showDebugNumber = false,
+    canClick,
+    onClick,
+    boardId = 'the-cafe',
+    faceRotation,
+    tapScale = MIN_TAP_SCALE,
+    fx,
+}: DieProps) {
+    const groupRef = useRef<THREE.Group>(null);
+    const faceGroupRef = useRef<THREE.Group>(null);
+    const bodyRef = useRef<THREE.MeshStandardMaterial>(null);
+    const [debugValue, setDebugValue] = useState(1);
 
-        /** Body orientation combined with the pip relabelling: what the player sees. */
-        const shownQuat = useMemo(() => new THREE.Quaternion(), []);
-        const readShown = () => {
-            shownQuat.copy(quaternion);
-            if (faceRotation) shownQuat.multiply(faceRotation);
-            return shownQuat;
-        };
+    /** Body orientation combined with the pip relabelling: what the player sees. */
+    const shownQuat = useMemo(() => new THREE.Quaternion(), []);
+    const readShown = () => {
+        shownQuat.copy(quaternion);
+        if (faceRotation) shownQuat.multiply(faceRotation);
+        return shownQuat;
+    };
 
-        // The board supplies the material; the player supplies the colour. A board can
-        // never override the colour outright — doing so silently made the picker useless
-        // on the Forge and Pirates Cove.
-        const skin = useMemo(() => {
-            if (isHeld) {
-                return {
-                    color: '#fbbf24', // premium gold for locked dice
-                    roughness: 0.1,
-                    metalness: 0.4,
-                    pipColor: '#111111',
-                };
-            }
-
-            const boardSkin = getBoard(boardId).diceSkin;
-            const dieLuminance = relativeLuminance(color);
-
-            // Pips by how light the die actually is, not by whether it happens to be pure
-            // white. Cream and amber dice were getting white pips, which all but vanish
-            // once a highlight catches the face.
-            const autoPip = dieLuminance > 0.52 ? '#1A1A1A' : '#FFFFFF';
-
-            // A board's signature pips only earn their place when you can see them: the
-            // Forge's magma glows on a black die and disappears on an orange one.
-            const signature = boardSkin.pipColor;
-            const usableSignature =
-                signature && Math.abs(relativeLuminance(signature) - dieLuminance) >= MIN_PIP_CONTRAST;
-
+    // The board supplies the material; the player supplies the colour. A board can
+    // never override the colour outright — doing so silently made the picker useless
+    // on the Forge and Pirates Cove.
+    const skin = useMemo(() => {
+        if (isHeld) {
             return {
-                color,
-                roughness: boardSkin.roughness,
-                metalness: boardSkin.metalness,
-                pipColor: usableSignature ? signature : autoPip,
+                color: '#fbbf24', // premium gold for locked dice
+                roughness: 0.1,
+                metalness: 0.4,
+                pipColor: '#111111',
             };
-        }, [boardId, color, isHeld]);
+        }
 
-        // The pose vectors are mutated in place by the arena, so copy them onto the
-        // three.js objects every frame rather than reacting to prop changes.
-        useFrame(() => {
-            const g = groupRef.current;
-            if (!g) return;
-            g.position.copy(position);
-            g.quaternion.copy(quaternion);
-            g.visible = fx ? fx.visible : true;
-            if (bodyRef.current) bodyRef.current.emissiveIntensity = (fx?.glow ?? 0) * GLINT_STRENGTH;
+        const boardSkin = getBoard(boardId).diceSkin;
+        const dieLuminance = relativeLuminance(color);
 
-            const faces = faceGroupRef.current;
-            if (faces) {
-                if (faceRotation) faces.quaternion.copy(faceRotation);
-                else faces.quaternion.identity();
-            }
+        // Pips by how light the die actually is, not by whether it happens to be pure
+        // white. Cream and amber dice were getting white pips, which all but vanish
+        // once a highlight catches the face.
+        const autoPip = dieLuminance > 0.52 ? '#1A1A1A' : '#FFFFFF';
 
-            if (showDebugNumber) {
-                const v = valueFromQuaternion(readShown());
-                if (v !== debugValue) setDebugValue(v);
-            }
-        });
+        // A board's signature pips only earn their place when you can see them: the
+        // Forge's magma glows on a black die and disappears on an orange one.
+        const signature = boardSkin.pipColor;
+        const usableSignature =
+            signature && Math.abs(relativeLuminance(signature) - dieLuminance) >= MIN_PIP_CONTRAST;
 
-        // The pose objects are mutated in place, so this reads live values.
-        useImperativeHandle(ref, () => ({
-            getValue: () => valueFromQuaternion(readShown()),
-        }));
-
-        const handleClick = (e: ThreeEvent<MouseEvent>) => {
-            e.stopPropagation();
-            if (!canClick) return;
-            onClick();
+        return {
+            color,
+            roughness: boardSkin.roughness,
+            metalness: boardSkin.metalness,
+            pipColor: usableSignature ? signature : autoPip,
         };
+    }, [boardId, color, isHeld]);
+    const bodyColor = useMemo(() => new THREE.Color(skin.color), [skin.color]);
 
-        return (
-            <group ref={groupRef} scale={isHeld ? HELD_SCALE : 1.0}>
-                {showDebugNumber && (
-                    <Text position={[0, 1.2, 0]} fontSize={0.45} color="black" outlineWidth={0.03} outlineColor="white">
-                        {debugValue}
-                    </Text>
-                )}
+    // The pose vectors are mutated in place by the arena, so copy them onto the
+    // three.js objects every frame rather than reacting to prop changes.
+    useFrame(() => {
+        const g = groupRef.current;
+        if (!g) return;
+        g.position.copy(position);
+        g.quaternion.copy(quaternion);
+        g.visible = fx ? fx.visible : true;
+        const body = bodyRef.current;
+        if (body) {
+            const glow = fx?.glow ?? 0;
+            body.emissiveIntensity = glow * GLINT_STRENGTH;
+            body.color.copy(bodyColor).lerp(GLINT_GOLD, glow * GLINT_GOLD_STRENGTH);
+        }
 
-                {/* Invisible hitbox */}
-                <mesh
-                    onClick={handleClick}
-                    onPointerOver={() => {
-                        if (canClick) document.body.style.cursor = 'pointer';
-                    }}
-                    onPointerOut={() => (document.body.style.cursor = 'default')}
-                    visible
-                >
-                    <boxGeometry args={[DIE_SIZE * tapScale, DIE_SIZE * tapScale, DIE_SIZE * tapScale]} />
-                    <meshBasicMaterial transparent opacity={0} />
-                </mesh>
+        const faces = faceGroupRef.current;
+        if (faces) {
+            if (faceRotation) faces.quaternion.copy(faceRotation);
+            else faces.quaternion.identity();
+        }
 
-                <group ref={faceGroupRef} raycast={() => null}>
-                    <RoundedBox args={[DIE_SIZE, DIE_SIZE, DIE_SIZE]} radius={CORNER_RADIUS} smoothness={8} castShadow>
-                        <meshStandardMaterial
-                            ref={bodyRef}
-                            emissive={GLINT_COLOR}
-                            emissiveIntensity={0}
-                            color={skin.color}
-                            roughness={skin.roughness}
-                            metalness={skin.metalness}
-                            envMapIntensity={1.2}
-                        />
-                    </RoundedBox>
+        if (showDebugNumber) {
+            const v = valueFromQuaternion(readShown());
+            if (v !== debugValue) setDebugValue(v);
+        }
+    });
 
-                    <Face value={1} rotation={[0, 0, 0]} pipColor={skin.pipColor} />
-                    <Face value={6} rotation={[Math.PI, 0, 0]} pipColor={skin.pipColor} />
-                    <Face value={2} rotation={[Math.PI / 2, 0, 0]} pipColor={skin.pipColor} />
-                    <Face value={5} rotation={[-Math.PI / 2, 0, 0]} pipColor={skin.pipColor} />
-                    <Face value={3} rotation={[0, 0, -Math.PI / 2]} pipColor={skin.pipColor} />
-                    <Face value={4} rotation={[0, 0, Math.PI / 2]} pipColor={skin.pipColor} />
-                </group>
+    const handleClick = (e: ThreeEvent<MouseEvent>) => {
+        e.stopPropagation();
+        if (!canClick) return;
+        onClick();
+    };
+
+    return (
+        <group ref={groupRef} scale={isHeld ? HELD_SCALE : 1.0}>
+            {showDebugNumber && (
+                <Text position={[0, 1.2, 0]} fontSize={0.45} color="black" outlineWidth={0.03} outlineColor="white">
+                    {debugValue}
+                </Text>
+            )}
+
+            {/* Invisible hitbox */}
+            <mesh
+                onClick={handleClick}
+                onPointerOver={() => {
+                    if (canClick) document.body.style.cursor = 'pointer';
+                }}
+                onPointerOut={() => (document.body.style.cursor = 'default')}
+                visible
+            >
+                <boxGeometry args={[DIE_SIZE * tapScale, DIE_SIZE * tapScale, DIE_SIZE * tapScale]} />
+                <meshBasicMaterial transparent opacity={0} />
+            </mesh>
+
+            <group ref={faceGroupRef} raycast={() => null}>
+                <RoundedBox args={[DIE_SIZE, DIE_SIZE, DIE_SIZE]} radius={CORNER_RADIUS} smoothness={8} castShadow>
+                    <meshStandardMaterial
+                        ref={bodyRef}
+                        emissive={GLINT_COLOR}
+                        emissiveIntensity={0}
+                        color={skin.color}
+                        roughness={skin.roughness}
+                        metalness={skin.metalness}
+                        envMapIntensity={1.2}
+                    />
+                </RoundedBox>
+
+                <Face value={1} rotation={[0, 0, 0]} pipColor={skin.pipColor} />
+                <Face value={6} rotation={[Math.PI, 0, 0]} pipColor={skin.pipColor} />
+                <Face value={2} rotation={[Math.PI / 2, 0, 0]} pipColor={skin.pipColor} />
+                <Face value={5} rotation={[-Math.PI / 2, 0, 0]} pipColor={skin.pipColor} />
+                <Face value={3} rotation={[0, 0, -Math.PI / 2]} pipColor={skin.pipColor} />
+                <Face value={4} rotation={[0, 0, Math.PI / 2]} pipColor={skin.pipColor} />
             </group>
-        );
-    }
-);
+        </group>
+    );
+}
 
-Die.displayName = 'Die';
 export default Die;

@@ -463,6 +463,7 @@ function DiceLayer({
     onTurnComplete,
     onImpact,
     boardId,
+    celebrating,
 }: {
     state: ArenaState;
     heldDice: boolean[];
@@ -479,6 +480,8 @@ function DiceLayer({
     onTurnComplete?: (results: number[]) => void;
     onImpact?: () => void;
     boardId: string;
+    /** A celebration has the dice: held ones drop their gold, so the five match. */
+    celebrating: boolean;
 }) {
     const tmpA = useMemo(() => new THREE.Vector3(), []);
     const tmpB = useMemo(() => new THREE.Vector3(), []);
@@ -617,12 +620,11 @@ function DiceLayer({
             {state.positions.map((_, i) => (
                 <Die
                     key={i}
-                    index={i}
                     position={state.positions[i]}
                     quaternion={state.quats[i]}
                     faceRotation={state.faceRot[i]}
                     fx={state.fx[i]}
-                    isHeld={!!heldDice[i]}
+                    isHeld={!!heldDice[i] && !celebrating}
                     color={diceColor}
                     showDebugNumber={showDebugNumbers}
                     canClick={canInteract}
@@ -740,6 +742,12 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
 
     const state = useRef<ArenaState>(null as unknown as ArenaState);
     if (!state.current) state.current = createArenaState();
+
+    /**
+     * Whether a celebration has the dice, as React state so the dice re-skin: a Sarzee
+     * rolled with some dice held would otherwise make a row of gold and coloured dice.
+     */
+    const [celebrating, setCelebrating] = useState(false);
 
     // Dev affordance: lets the live dice poses be inspected from the console.
     useEffect(() => {
@@ -874,7 +882,10 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
 
             const setFace = (i: number, value: number) => setFaceOn(s, i, value);
 
-            const endCelebration = () => endCelebrationOn(s, heldSlotPositions);
+            const endCelebration = () => {
+                endCelebrationOn(s, heldSlotPositions);
+                setCelebrating(false);
+            };
 
             const rollToResult = (values: number[]) => {
                 endCelebration();
@@ -998,6 +1009,7 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
                         rowQ: s.quats.map((q) => nearestCubeRotation(q)),
                         rank,
                     };
+                    setCelebrating(true);
                     return true;
                 },
                 endCelebration,
@@ -1078,6 +1090,7 @@ const DiceArena = forwardRef<DiceArenaHandle, DiceArenaProps>((props, ref) => {
                         onTurnComplete={onTurnComplete}
                         onImpact={onImpact}
                         boardId={boardId}
+                        celebrating={celebrating}
                     />
                 </Canvas>
             )}

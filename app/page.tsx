@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import type { DiceArenaHandle } from '@/components/DiceArena';
-import BoardStage from '@/components/BoardStage';
 import GameHud from '@/components/GameHud';
 import GameOverOverlay from '@/components/GameOverOverlay';
 import ScoreTable from '@/components/ScoreTable';
@@ -15,6 +15,18 @@ import { useSarzeeGame } from '@/lib/useSarzeeGame';
 import { useCpuTurn } from '@/lib/useCpuTurn';
 import { useViewport } from '@/lib/useBoardLayout';
 import { useGameSounds } from '@/lib/useGameSounds';
+
+/**
+ * The board and its 3D dice (three.js, react-three-fiber, cannon-es) are most of the page's
+ * weight, so they load on demand: the setup screen paints without them, and Page starts the
+ * download while the player is still choosing a board, so it is usually in by the start.
+ */
+const loadBoardStage = () => import('@/components/BoardStage');
+const BoardStage = dynamic(loadBoardStage, {
+    ssr: false,
+    // Until it arrives, the stage's box stays empty over the page's black.
+    loading: () => <div className="absolute inset-0" />,
+});
 
 /** Loaded on demand — jsPDF and html-to-image are large and only needed at game over. */
 const importExportTools = async () => {
@@ -74,6 +86,7 @@ export default function Page() {
         playerTypes,
         playerDiceColors,
         isRolling,
+        shownRollsLeft,
         showCelebration,
         setShowCelebration,
         showNancyCelebration,
@@ -84,7 +97,43 @@ export default function Page() {
         highScorePlaces,
         riggedRoll,
         armRiggedRoll,
+        toggleHold,
     } = game;
+
+    // Keys 1 to 5 hold and release the dice, for the human on turn: only between rolls
+    // (after the third there is nothing left to hold for), never for a CPU, and not while
+    // a celebration has the table or a drawer is open. Digits typed into a field are left
+    // alone, Shift combinations belong to the dev shortcuts, and the typed rig words are
+    // letters, so none of them collide.
+    const holdKeysLive =
+        phase === 'PLAYING' &&
+        canInteractDice &&
+        (gameState?.rollsLeft ?? 0) > 0 &&
+        !showCelebration &&
+        !showNancyCelebration &&
+        !showRules &&
+        !showStats;
+    useEffect(() => {
+        if (!holdKeysLive) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.repeat || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+            const t = e.target as HTMLElement | null;
+            const tag = t?.tagName?.toLowerCase();
+            if (tag === 'input' || tag === 'textarea' || tag === 'select' || t?.isContentEditable) return;
+            const die = '12345'.indexOf(e.key);
+            if (die < 0) return;
+            e.preventDefault();
+            toggleHold(die);
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [holdKeysLive, toggleHold]);
+
+    // Fetch the board's code once setup is on screen, not before it.
+    useEffect(() => {
+        const t = setTimeout(() => void loadBoardStage(), 300);
+        return () => clearTimeout(t);
+    }, []);
 
     // Hidden test keystroke, in every build: type "sarzee" or "nancy" during a game and the
     // next roll (or, for a Nancy, the next opening roll) is dealt that result, so the
@@ -200,6 +249,9 @@ export default function Page() {
     if (!gameState || !viewport.ready) return <div className="fixed inset-0 bg-black" />;
 
     const celebrating = showCelebration || showNancyCelebration;
+    // `activePlayer` wraps back to the first seat when the last card fills, but nobody is
+    // on turn once the game is over, so nobody is highlighted.
+    const gameOver = phase === 'GAME_OVER';
     const stacked = viewport.mode === 'stack';
     /** Width of the scorecard rail covering the right of the board, or 0 when stacked. */
     const railInset = stacked ? 0 : viewport.railWidth;
@@ -219,7 +271,7 @@ export default function Page() {
         upperBonuses,
         yahtzeeBonuses,
         totals,
-        activePlayerIndex: activePlayer,
+        activePlayerIndex: gameOver ? -1 : activePlayer,
         potentialScores,
         canSelectCategory,
         onSelectCategory: game.selectCategory,
@@ -252,7 +304,7 @@ export default function Page() {
                 gameState.isGameOver ||
                 playerTypes[activePlayer] !== 'HUMAN'
             }
-            rollsLeft={gameState.isGameOver ? 0 : gameState.rollsLeft}
+            rollsLeft={shownRollsLeft}
             feltOverlay={
                 celebrating ? (
                     <>
@@ -274,7 +326,8 @@ export default function Page() {
                     playerName={customNames[activePlayer] || `Player ${activePlayer + 1}`}
                     playerType={playerTypes[activePlayer] ?? 'HUMAN'}
                     playerColor={playerDiceColors[activePlayer] || '#FFFFFF'}
-                    rollsLeft={gameState.rollsLeft}
+                    rollsLeft={shownRollsLeft}
+                    gameOver={gameOver}
                     theme={board.theme}
                     plate={titlePlate}
                     compact={compact}
@@ -285,6 +338,38 @@ export default function Page() {
                 />
             )}
         >
+            {/* The holds for keyboards and screen readers: one toggle per die, out of sight
+                until one of them has focus. Tapping a die on the table does the same. */}
+            <div
+                className="absolute z-40 -translate-x-1/2"
+                style={{ left: 'var(--felt-cx)', top: 'calc(var(--felt-top) + 8px)' }}
+            >
+                <div role="group" aria-label="Hold dice" className="sr-only focus-within:not-sr-only flex gap-1.5">
+                    {gameState.diceValues.map((value, i) => {
+                        const held = gameState.heldDice[i];
+                        return (
+                            <button
+                                key={i}
+                                type="button"
+                                disabled={!holdKeysLive}
+                                aria-pressed={held}
+                                aria-label={holdKeysLive ? `Hold die ${i + 1}, showing ${value}` : `Hold die ${i + 1}`}
+                                onClick={() => toggleHold(i)}
+                                className="w-8 h-8 rounded-lg border-2 font-black text-sm cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 shadow-lg"
+                                style={{
+                                    background: held ? '#fbbf24' : 'rgba(0,0,0,0.75)',
+                                    color: held ? '#111' : '#fff',
+                                    borderColor: held ? '#fbbf24' : 'rgba(255,255,255,0.35)',
+                                    outlineColor: board.theme.focus,
+                                }}
+                            >
+                                <span aria-hidden>{value}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
             {cpu.isThinking && cpu.message && !celebrating && (
                 <div
                     className={`absolute -translate-x-1/2 z-40 pointer-events-none animate-in fade-in-0 duration-300 max-w-[92%] ${
@@ -335,7 +420,7 @@ export default function Page() {
                 </aside>
             )}
 
-            {phase === 'GAME_OVER' && (
+            {gameOver && (
                 <GameOverOverlay
                     playerNames={customNames}
                     totals={totals}

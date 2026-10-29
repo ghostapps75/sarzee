@@ -1,8 +1,61 @@
 // lib/useGameSounds.ts
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { SOUNDS, SOUND_IDS, SoundId, soundUrl } from './sounds';
+
+// ---------------------------------------------------------------------------------------
+// Mute
+//
+// One switch for the whole page, kept in localStorage so it survives a reload. Several
+// hooks own Audio elements (the game, the celebrations, the page), so the switch lives
+// here at module level and every element any of them makes is registered with it: muting
+// silences a celebration track that is already playing, not just the next sound.
+//
+// Muted sounds still play, silently. The celebrations time themselves to their cue's
+// playback, so skipping it would change their pacing; `muted` (unlike `volume`) is also
+// honoured on iOS.
+
+const MUTE_KEY = 'sarzee_muted';
+const muteListeners = new Set<() => void>();
+const liveElements = new Set<HTMLAudioElement>();
+let muted: boolean | null = null;
+
+function isMuted(): boolean {
+    if (muted === null) {
+        try {
+            muted = typeof window !== 'undefined' && localStorage.getItem(MUTE_KEY) === '1';
+        } catch {
+            muted = false;
+        }
+    }
+    return muted;
+}
+
+export function setSoundsMuted(next: boolean) {
+    muted = next;
+    try {
+        if (next) localStorage.setItem(MUTE_KEY, '1');
+        else localStorage.removeItem(MUTE_KEY);
+    } catch {
+        // Private mode or storage blocked: the switch still works for this visit.
+    }
+    liveElements.forEach((el) => (el.muted = next));
+    muteListeners.forEach((fn) => fn());
+}
+
+function subscribeMuted(fn: () => void) {
+    muteListeners.add(fn);
+    return () => {
+        muteListeners.delete(fn);
+    };
+}
+
+/** Whether sound is off, and the switch. Prerendered as on, then read from storage. */
+export function useSoundMuted(): [boolean, (muted: boolean) => void] {
+    const value = useSyncExternalStore(subscribeMuted, isMuted, () => false);
+    return [value, setSoundsMuted];
+}
 
 /**
  * The game's audio, in one place.
@@ -24,7 +77,9 @@ export function useGameSounds() {
         if (!el) {
             el = new Audio(soundUrl(id));
             el.preload = 'auto';
+            el.muted = isMuted();
             elements.current.set(id, el);
+            liveElements.add(el);
         }
         return el;
     }, []);
@@ -40,6 +95,7 @@ export function useGameSounds() {
             try {
                 const el = element(id);
                 el.volume = SOUNDS[id].volume;
+                el.muted = isMuted();
                 el.currentTime = 0;
                 // Browsers reject playback before the first user gesture. That is expected
                 // rather than exceptional, so it is swallowed instead of logged per roll.
@@ -81,6 +137,7 @@ export function useGameSounds() {
             map.forEach((el) => {
                 el.pause();
                 el.src = '';
+                liveElements.delete(el);
             });
             map.clear();
         };

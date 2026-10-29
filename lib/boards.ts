@@ -411,7 +411,9 @@ export const BOARDS: BoardDefinition[] = [
             { name: 'White', hex: '#F4F4F4' },
             { name: 'Leaf Blush', hex: '#F2A0B4' },
         ],
-        diceSkin: DEFAULT_SKIN,
+        // Most rolls land on the red felt leaf, where the Maple Leaf dice are close to it in
+        // tone; a firmer contact shadow keeps their edges.
+        diceSkin: { ...DEFAULT_SKIN, shadowOpacity: 0.55 },
         theme: {
             text: '#F5E6D3',
             bg: '#5A3D2E',
@@ -724,8 +726,4 @@ export function traySlots(tray: FracRect, count: number): FracRect[] {
         w: tray.w,
         h: tray.h / count,
     }));
-}
-
-export function boardTextureUrl(board: BoardDefinition): string {
-    return `/textures/${board.file}`;
 }

@@ -60,7 +60,7 @@ export default function RulesDrawer({ isOpen, onClose, theme: themeColors }: Rul
               <span style={{ color: themeColors.text }}>Scoresheet</span>
             </h3>
             <p className="leading-relaxed text-gray-400">
-              Roll 5 physics-based 3D dice across 13 consecutive turns to build high-scoring combinations. Complete all categories on your scorecard to achieve the ultimate high score.
+              Everyone gets 13 turns. Each turn, roll the five dice up to three times, then write the result in one open box on your card. When every box is filled, the highest total wins.
             </p>
           </div>
 
@@ -74,7 +74,7 @@ export default function RulesDrawer({ isOpen, onClose, theme: themeColors }: Rul
                 <span className="w-5 h-5 rounded bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">1</span>
                 <div>
                   <h4 className="font-semibold text-white">First Roll</h4>
-                  <p className="text-xs text-gray-400">Roll all 5 dice into the tabletop arena.</p>
+                  <p className="text-xs text-gray-400">Roll all 5 dice onto the felt.</p>
                 </div>
               </div>
               <div className="flex gap-3 items-start">
@@ -82,6 +82,7 @@ export default function RulesDrawer({ isOpen, onClose, theme: themeColors }: Rul
                 <div>
                   <h4 className="font-semibold text-white">Hold Dice</h4>
                   <p className="text-xs text-gray-400">Toggle lock/hold on any number of dice to save their values for subsequent rolls.</p>
+                  <p className="text-xs text-gray-400 mt-1">On a keyboard, keys <strong className="text-white">1</strong> to <strong className="text-white">5</strong> hold and release the five dice.</p>
                 </div>
               </div>
               <div className="flex gap-3 items-start">
@@ -175,6 +176,14 @@ export default function RulesDrawer({ isOpen, onClose, theme: themeColors }: Rul
                 <span className="text-emerald-400 font-bold">35 pts if Upper Sum &ge; 63</span>
               </li>
             </ul>
+            <p className="text-xs text-gray-400 leading-normal">
+              <strong className="text-white">Jokers (house rule).</strong> Roll another Sarzee once your Sarzee box is filled
+              and the upper box for that number is filled too (Fives, for five 5s), and it&apos;s a{' '}
+              <strong className="text-white">Joker</strong>: put it in any open box you like, and Full House, Small Straight and
+              Large Straight pay their full <strong className="text-white">25, 30 and 40</strong>. Until that upper box is
+              filled, a repeat Sarzee scores 0 in those three. If your Sarzee box holds 50, the{' '}
+              <strong className="text-white">+100 bonus</strong> still applies wherever it goes.
+            </p>
           </div>
         </div>
 
@@ -183,7 +192,7 @@ export default function RulesDrawer({ isOpen, onClose, theme: themeColors }: Rul
           className="p-6 border-t text-center text-xs text-gray-500 shrink-0"
           style={{ borderColor: `${themeColors.border}20` }}
         >
-          Sarzee Premium Edition © 2026
+          Sarzee · 2026
         </div>
       </div>
     </>

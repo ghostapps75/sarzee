@@ -1,6 +1,27 @@
 import React, { useState } from 'react';
 import { CpuPersonality } from '@/lib/CpuAgent';
-import { BOARDS, getBoard } from '@/lib/boards';
+import { BOARDS, BoardDefinition, getBoard } from '@/lib/boards';
+import { useSoundMuted } from '@/lib/useGameSounds';
+
+/**
+ * A board's picture cropped to the board itself (its `unit` rect), without the table
+ * dressing around it: background-size scales the image so the rect fills the box, and
+ * background-position puts the rect's corner at the box's. The box takes the rect's
+ * aspect ratio, so nothing is stretched.
+ */
+function boardThumbnail(board: BoardDefinition): React.CSSProperties {
+  const { x, y, w, h } = board.unit;
+  // A percentage position p lines up p% of the image with p% of the box; solving for the
+  // rect's corner gives start / (1 - size). A rect spanning the whole axis needs none.
+  const at = (start: number, size: number) => (size >= 1 ? 0 : (start / (1 - size)) * 100);
+  return {
+    backgroundImage: `url(/textures/${board.file})`,
+    backgroundSize: `${100 / w}% ${100 / h}%`,
+    backgroundPosition: `${at(x, w)}% ${at(y, h)}%`,
+    backgroundRepeat: 'no-repeat',
+    aspectRatio: (w * board.imgW) / (h * board.imgH),
+  };
+}
 
 interface SetupPanelProps {
   selectedBoard: string;
@@ -28,6 +49,7 @@ export default function SetupPanel({
   onStartGame,
 }: SetupPanelProps) {
   const [step, setStep] = useState<'BOARD' | 'COUNT' | 'PLAYERS'>('BOARD');
+  const [muted, setMuted] = useSoundMuted();
   const boardOption = getBoard(selectedBoard);
   const themeColors = boardOption.theme;
 
@@ -112,13 +134,24 @@ export default function SetupPanel({
       <div className="relative z-10 w-full max-w-4xl max-h-[92vh] flex flex-col items-center">
         {/* Main Frosted Container */}
         <div
-          className="w-full flex flex-col rounded-3xl border shadow-2xl backdrop-blur-xl p-8 md:p-10 overflow-hidden transition-all duration-500"
+          className="relative w-full flex flex-col rounded-3xl border shadow-2xl backdrop-blur-xl p-8 md:p-10 overflow-hidden transition-all duration-500"
           style={{
             backgroundColor: 'rgba(15, 15, 20, 0.75)',
             borderColor: `${themeColors.border}30`,
             boxShadow: `0 20px 80px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 40px ${themeColors.border}10`,
           }}
         >
+          {/* The same switch as the one in the game's HUD. */}
+          <button
+            type="button"
+            onClick={() => setMuted(!muted)}
+            aria-label={muted ? 'Unmute sounds' : 'Mute sounds'}
+            title={muted ? 'Unmute sounds' : 'Mute sounds'}
+            className="absolute top-4 right-4 w-9 h-9 rounded-lg flex items-center justify-center bg-white/5 hover:bg-white/10 text-base transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{ outlineColor: themeColors.focus }}
+          >
+            <span aria-hidden>{muted ? '🔇' : '🔊'}</span>
+          </button>
           {/* Header Title with animated gradient clip */}
           <div className="text-center mb-8 shrink-0">
             <h1
@@ -131,53 +164,58 @@ export default function SetupPanel({
               SARZEE
             </h1>
             <p className="text-gray-400 text-xs md:text-sm tracking-widest mt-2 uppercase">
-              Premium 3D Physics Tabletop Arena
+              A dice game for friends and family
             </p>
           </div>
 
           {/* Setup Steps content - scrollable internally. Vertical only: overflow-y-auto alone
-              makes overflow-x auto too, so Launch Arena's hover scale, reaching past the edge,
+              makes overflow-x auto too, so the start button's hover scale, reaching past the edge,
               flashed a scrollbar that shifted it off the pointer. -m-2 p-2 gives that growth
               room to land in on every side without moving the content. */}
           <div className="flex-1 overflow-y-auto overflow-x-hidden -m-2 p-2 select-none scrollbar-thin">
             {step === 'BOARD' && (
               <div className="animate-in fade-in-50 slide-in-from-bottom-5 duration-300">
                 <h2 className="text-lg md:text-xl font-bold text-white text-center mb-6 uppercase tracking-wider">
-                  Select Tabletop Arena
+                  Pick a board
                 </h2>
                 {/* px-3 covers a card's hover:scale-[1.02] (up to ~7px a side on a full-width
-                    card) so it stays inside the padding box instead of adding a scrollbar. */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto overflow-x-hidden px-3 py-1 scrollbar-thin">
+                    card) so it stays inside the padding box instead of adding a scrollbar; py-1.5
+                    leaves the same room for a focused card's ring. */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto overflow-x-hidden px-3 py-1.5 scrollbar-thin">
                   {BOARDS.map((board) => {
                     const isActive = board.id === selectedBoard;
                     return (
-                      <div
+                      <button
                         key={board.id}
+                        type="button"
+                        data-board={board.id}
+                        aria-pressed={isActive}
                         onClick={() => handleBoardSelect(board.id)}
-                        className={`group relative rounded-2xl p-4 border cursor-pointer overflow-hidden transition-all duration-300 hover:scale-[1.02] flex gap-4 items-center`}
+                        className={`group relative rounded-2xl p-4 border cursor-pointer overflow-hidden transition-all duration-300 hover:scale-[1.02] flex gap-4 items-center text-left focus-visible:outline-2 focus-visible:outline-offset-2`}
                         style={{
                           backgroundColor: isActive ? `${themeColors.border}20` : 'rgba(255,255,255,0.02)',
                           borderColor: isActive ? themeColors.border : 'rgba(255,255,255,0.08)',
                           boxShadow: isActive ? `0 0 20px ${themeColors.border}20` : 'none',
+                          outlineColor: themeColors.focus,
                         }}
                       >
-                        {/* Little Miniature Board Image */}
-                        <div
-                          className="w-16 h-16 rounded-xl border shrink-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
+                        {/* The whole board in miniature, at the card's usual height. */}
+                        <span
+                          className="block h-16 rounded-xl border shrink-0 transition-transform duration-500 group-hover:scale-105"
                           style={{
-                            backgroundImage: `url(/textures/${board.file})`,
+                            ...boardThumbnail(board),
                             borderColor: isActive ? themeColors.border : 'rgba(255,255,255,0.1)',
                           }}
                         />
-                        <div className="flex flex-col">
-                          <h3 className="font-bold text-white text-base group-hover:text-yellow-400 transition-colors">
+                        <span className="flex flex-col">
+                          <span className="font-bold text-white text-base group-hover:text-yellow-400 group-focus-visible:text-yellow-400 transition-colors">
                             {board.name}
-                          </h3>
-                          <p className="text-xs text-gray-400 mt-1 leading-normal">
+                          </span>
+                          <span className="text-xs text-gray-400 mt-1 leading-normal">
                             {board.description}
-                          </p>
-                        </div>
-                      </div>
+                          </span>
+                        </span>
+                      </button>
                     );
                   })}
                 </div>
@@ -194,11 +232,12 @@ export default function SetupPanel({
                     <button
                       key={n}
                       onClick={() => handlePlayerCountSelect(n)}
-                      className="w-20 h-20 font-black rounded-2xl shadow-xl text-3xl transition-all transform hover:scale-110 active:scale-95 border-2 flex items-center justify-center cursor-pointer"
+                      className="w-20 h-20 font-black rounded-2xl shadow-xl text-3xl transition-all transform hover:scale-110 focus-visible:scale-110 active:scale-95 border-2 flex items-center justify-center cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4"
                       style={{
                         background: `linear-gradient(to bottom, ${themeColors.buttonGradientFrom}, ${themeColors.buttonGradientTo})`,
                         color: themeColors.buttonText,
                         borderColor: themeColors.buttonBorder,
+                        outlineColor: themeColors.focus,
                         boxShadow: `0 10px 25px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1), 0 0 15px ${themeColors.border}15`,
                       }}
                       onMouseEnter={(e) => {
@@ -226,7 +265,7 @@ export default function SetupPanel({
             {step === 'PLAYERS' && (
               <div className="animate-in fade-in-50 slide-in-from-bottom-5 duration-300">
                 <h2 className="text-lg md:text-xl font-bold text-white text-center mb-6 uppercase tracking-wider">
-                  Configure Players & Personalities
+                  Who&apos;s playing?
                 </h2>
                 <div className="flex flex-col gap-5 mx-auto mb-6 p-1 max-h-[46vh] overflow-y-auto overflow-x-hidden scrollbar-thin">
                   {customNames.map((name, idx) => {
@@ -309,10 +348,11 @@ export default function SetupPanel({
                                 <button
                                   key={opt.hex}
                                   onClick={() => updatePlayerColor(idx, opt.hex)}
-                                  className={`w-7 h-7 rounded-lg border-2 transition-all transform hover:scale-110 cursor-pointer ${
+                                  className={`w-7 h-7 rounded-lg border-2 transition-all transform hover:scale-110 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:opacity-100 ${
                                     isSel ? 'scale-110 shadow-md' : 'opacity-70 hover:opacity-100'
                                   }`}
                                   style={{
+                                    outlineColor: themeColors.focus,
                                     backgroundColor: opt.hex,
                                     // Unselected swatches get a faint edge so a white or
                                     // near-black die still reads as a swatch on the dark card.
@@ -358,7 +398,7 @@ export default function SetupPanel({
                       e.currentTarget.style.borderColor = themeColors.buttonBorder;
                     }}
                   >
-                    Launch Arena
+                    Let&apos;s roll
                   </button>
                 </div>
               </div>

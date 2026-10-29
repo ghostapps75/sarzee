@@ -8,7 +8,7 @@ export const SITE_URL = 'https://sarzee.netlify.app';
 export const SITE_NAME = 'Sarzee';
 export const SITE_TITLE = 'Sarzee - Multiplayer Dice Game';
 export const SITE_DESCRIPTION =
-    'Play Sarzee with friends: a multiplayer dice game with real 3D physics, ten tabletop arenas and a handwritten score sheet. Roll five of a kind to win big!';
+    'Play Sarzee with friends: a multiplayer dice game with real 3D physics, ten boards to play on and a handwritten score sheet. Roll five of a kind to win big!';
 
 /** The colour behind everything, so the browser chrome on phones matches the table edge. */
 export const THEME_COLOR = '#0a0a0a';
