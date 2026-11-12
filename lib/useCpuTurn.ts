@@ -54,7 +54,6 @@ export function useCpuTurn(game: SarzeeGame) {
         gameState,
         isRolling,
         showCelebration,
-        showNancyCelebration,
         playerTypes,
         customNames,
         enginesRef,
@@ -72,7 +71,7 @@ export function useCpuTurn(game: SarzeeGame) {
         const personality = playerTypes[activePlayer];
         if (!personality || personality === 'HUMAN') return;
 
-        if (busy.current || isRolling || showCelebration || showNancyCelebration) return;
+        if (busy.current || isRolling || showCelebration) return;
         if (!gameState || gameState.isGameOver) return;
 
         const engine = enginesRef.current[activePlayer];
@@ -168,7 +167,6 @@ export function useCpuTurn(game: SarzeeGame) {
         gameState,
         isRolling,
         showCelebration,
-        showNancyCelebration,
         playerTypes,
         customNames,
         enginesRef,

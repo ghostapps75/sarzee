@@ -45,7 +45,6 @@ function match(hours: number, seats: [string, number, boolean][], boardName = 'V
         winner: { name: players[winnerIndex].name, score: players[winnerIndex].score },
         isDraw: players.filter((p) => p.score === top).length > 1,
         sarzeeCount: 0,
-        nancyCount: 0,
     };
 }
 
@@ -187,6 +186,13 @@ function testSaveFile() {
     delete older.isDraw;
     const [loadedOlder] = parseMatchLogFile(JSON.stringify({ version: 1, records: [older] })).records;
     assert.ok(loadedOlder && !('isDraw' in loadedOlder));
+
+    // Older versions also counted a celebration that has since been removed. Such a record
+    // still loads, and the count it carried is dropped.
+    const withRetiredCount = { ...good, id: 'retired-count', nancyCount: 2 };
+    const [loadedRetired] = parseMatchLogFile(JSON.stringify({ version: 1, records: [withRetiredCount] })).records;
+    assert.ok(loadedRetired, 'the record is not rejected');
+    assert.deepStrictEqual(loadedRetired, { ...good, id: 'retired-count' });
 
     assert.throws(() => parseMatchLogFile('not json'), /isn't a Sarzee scores file/);
     assert.throws(() => parseMatchLogFile('[]'), /isn't a Sarzee scores file/);

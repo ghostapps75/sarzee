@@ -30,8 +30,7 @@ components/
   BoardStage.tsx       Paints the board and positions everything on it.
   DiceArena.tsx        The 3D felt: owns the roll, renders the dice.
   ScoreTable.tsx       The scorecard: a paper score pad in real DOM, every size.
-  SarzeeCelebration.tsx, NancyCelebration.tsx
-                       The two celebrations, drawn over the felt.
+  SarzeeCelebration.tsx  The five-of-a-kind celebration, drawn over the felt.
   StatsDashboard.tsx   The Stats drawer: overview, match history, high scores.
   HighScoreBoard.tsx   The high score table, drawn from a plain list of entries.
 ```
@@ -189,28 +188,25 @@ Two things worth knowing:
 - **Provenance goes with the tags.** If a clip's origin matters to you, note it somewhere
   else — the encoder removes artist and title along with the artwork.
 
-### Celebrations
+### Celebration
 
-A Sarzee (five of a kind) and a Nancy (an opening roll of five different numbers that isn't
-a straight) each get a short animation over the table, drawn entirely in code. In the
-Sarzee the real dice take a bow: they lift, spin, slam down in a row, and go back to where
-they landed. In the Nancy they catch fire and hop into a dumpster, which rolls away once
-they have hopped back out showing what they rolled.
+A Sarzee (five of a kind) gets a short animation over the table, drawn entirely in code.
+The real dice take a bow: they lift, spin, slam down in a row, and go back to where they
+landed.
 
-Both run on `lib/useCelebrationClock.ts`, which times them to their cue. The animation
-starts at once; when the browser knows how long `sarzee.mp3` or `nancy.mp3` is, the held
-moment in the middle stretches or shrinks so the animation ends with the sound (four
-seconds if the length isn't known in time). Swap either file and the timing follows. A
-tap, click or key skips to the end, and with reduced motion only the title is shown.
+It runs on `lib/useCelebrationClock.ts`, which times it to its cue. The animation starts at
+once; when the browser knows how long `sarzee.mp3` is, the held moment in the middle
+stretches or shrinks so the animation ends with the sound (four seconds if the length isn't
+known in time). Swap the file and the timing follows. A tap, click or key skips to the end,
+and with reduced motion only the title is shown.
 
-To see either one for real, in any build, type **sarzee** or **nancy** on the keyboard
-during a game (not into a field). A badge confirms it is armed; the next roll is dealt five
-of a kind, or the next opening roll a Nancy, and play carries on from there. Held dice keep
-their values, so a rigged Sarzee needs the held dice (if any) to match.
+To see it for real, in any build, type **sarzee** on the keyboard during a game (not into a
+field). A badge confirms it is armed; the next roll is dealt five of a kind, and play
+carries on from there. Held dice keep their values, so a rigged Sarzee needs the held dice
+(if any) to match.
 
-In the dev server, **Shift+C** fires the Sarzee overlay and **Shift+N** the Nancy, whatever
-the dice show. **Shift+L** draws the layout rects and **Shift+V** prints each die's value
-over it.
+In the dev server, **Shift+C** fires the Sarzee overlay, whatever the dice show.
+**Shift+L** draws the layout rects and **Shift+V** prints each die's value over it.
 
 ### Stats and high scores
 

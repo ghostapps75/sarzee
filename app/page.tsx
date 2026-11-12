@@ -7,7 +7,6 @@ import GameHud from '@/components/GameHud';
 import GameOverOverlay from '@/components/GameOverOverlay';
 import ScoreTable from '@/components/ScoreTable';
 import SarzeeCelebration from '@/components/SarzeeCelebration';
-import NancyCelebration from '@/components/NancyCelebration';
 import SetupPanel from '@/components/SetupPanel';
 import RulesDrawer from '@/components/RulesDrawer';
 import StatsDashboard from '@/components/StatsDashboard';
@@ -89,8 +88,6 @@ export default function Page() {
         shownRollsLeft,
         showCelebration,
         setShowCelebration,
-        showNancyCelebration,
-        setShowNancyCelebration,
         highlightedCategory,
         undoOffer,
         undoLastScore,
@@ -110,7 +107,6 @@ export default function Page() {
         canInteractDice &&
         (gameState?.rollsLeft ?? 0) > 0 &&
         !showCelebration &&
-        !showNancyCelebration &&
         !showRules &&
         !showStats;
     useEffect(() => {
@@ -135,10 +131,10 @@ export default function Page() {
         return () => clearTimeout(t);
     }, []);
 
-    // Hidden test keystroke, in every build: type "sarzee" or "nancy" during a game and the
-    // next roll (or, for a Nancy, the next opening roll) is dealt that result, so the
-    // celebrations can be checked without playing for them. Letters typed into a field
-    // don't count, and the word has to be typed within a couple of seconds.
+    // Hidden test keystroke, in every build: type "sarzee" during a game and the next roll
+    // is dealt five of a kind, so the celebration can be checked without playing for it.
+    // Letters typed into a field don't count, and the word has to be typed within a couple
+    // of seconds.
     useEffect(() => {
         let typed = '';
         let lastKey = 0;
@@ -150,10 +146,9 @@ export default function Page() {
             const now = Date.now();
             typed = ((now - lastKey > 2000 ? '' : typed) + e.key.toLowerCase()).slice(-6);
             lastKey = now;
-            const word = typed.endsWith('sarzee') ? 'sarzee' : typed.endsWith('nancy') ? 'nancy' : null;
-            if (!word) return;
+            if (!typed.endsWith('sarzee')) return;
             typed = '';
-            armRiggedRoll(word);
+            armRiggedRoll('sarzee');
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
@@ -171,19 +166,15 @@ export default function Page() {
             const k = e.key.toLowerCase();
             if (k === 'l') setDebugRects((s) => !s);
             if (k === 'v') setShowDieNumbers((s) => !s);
-            // Fire a celebration on demand, whatever the dice show.
+            // Fire the celebration on demand, whatever the dice show.
             if (k === 'c') {
                 setShowCelebration(false);
                 requestAnimationFrame(() => setShowCelebration(true));
             }
-            if (k === 'n') {
-                setShowNancyCelebration(false);
-                requestAnimationFrame(() => setShowNancyCelebration(true));
-            }
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [isDev, setShowCelebration, setShowNancyCelebration]);
+    }, [isDev, setShowCelebration]);
 
     const handleDownload = useCallback(async () => {
         setExporting(true);
@@ -248,7 +239,7 @@ export default function Page() {
 
     if (!gameState || !viewport.ready) return <div className="fixed inset-0 bg-black" />;
 
-    const celebrating = showCelebration || showNancyCelebration;
+    const celebrating = showCelebration;
     // `activePlayer` wraps back to the first seat when the last card fills, but nobody is
     // on turn once the game is over, so nobody is highlighted.
     const gameOver = phase === 'GAME_OVER';
@@ -306,19 +297,12 @@ export default function Page() {
             }
             rollsLeft={shownRollsLeft}
             feltOverlay={
-                celebrating ? (
-                    <>
-                        {showCelebration && (
-                            <SarzeeCelebration
-                                arenaRef={arenaRef}
-                                theme={board.theme}
-                                onDismiss={() => setShowCelebration(false)}
-                            />
-                        )}
-                        {showNancyCelebration && (
-                            <NancyCelebration arenaRef={arenaRef} onDismiss={() => setShowNancyCelebration(false)} />
-                        )}
-                    </>
+                showCelebration ? (
+                    <SarzeeCelebration
+                        arenaRef={arenaRef}
+                        theme={board.theme}
+                        onDismiss={() => setShowCelebration(false)}
+                    />
                 ) : undefined
             }
             hud={(titlePlate) => (
@@ -436,7 +420,7 @@ export default function Page() {
             {riggedRoll && (
                 <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[60] pointer-events-none animate-in fade-in-0 slide-in-from-top-2 duration-300">
                     <div className="backdrop-blur-md bg-black/75 border border-yellow-500/40 rounded-full px-4 py-1.5 shadow-2xl text-[11px] font-bold tracking-[0.2em] uppercase text-yellow-400">
-                        {riggedRoll === 'sarzee' ? 'Next roll: Sarzee' : 'Next opening roll: Nancy'}
+                        Next roll: Sarzee
                     </div>
                 </div>
             )}
@@ -464,7 +448,7 @@ export default function Page() {
 
             {isDev && (
                 <div className="absolute bottom-1 left-1 z-[999] font-mono text-[9px] text-white/40 pointer-events-none">
-                    {viewport.width}×{viewport.height} · {viewport.mode} · L=rects V=values C=sarzee N=nancy
+                    {viewport.width}×{viewport.height} · {viewport.mode} · L=rects V=values C=sarzee
                 </div>
             )}
         </div>
