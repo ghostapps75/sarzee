@@ -23,7 +23,6 @@ export interface MatchLog {
      */
     isDraw?: boolean;
     sarzeeCount: number;
-    nancyCount: number;
 }
 
 const STORAGE_KEY = 'sarzee_match_statistics';
@@ -57,7 +56,6 @@ export function appendMatchLog(input: {
     types: string[];
     totals: number[];
     sarzeeCount: number;
-    nancyCount: number;
 }): MatchLog | null {
     try {
         const players: PlayerScoreRecord[] = input.totals.map((score, idx) => ({
@@ -79,7 +77,6 @@ export function appendMatchLog(input: {
             winner: { name: players[winnerIndex].name, score: players[winnerIndex].score },
             isDraw,
             sarzeeCount: input.sarzeeCount,
-            nancyCount: input.nancyCount,
         };
 
         const logs = readMatchLogs();
@@ -283,11 +280,13 @@ export function serializeMatchLogs(logs: MatchLog[], now = new Date()): string {
 /**
  * A record from a file, checked field by field and copied, so only the shape this file
  * writes reaches storage. Null for anything that doesn't fit. `winner` is rebuilt from
- * `winnerIndex` rather than taken on trust.
+ * `winnerIndex` rather than taken on trust. Fields this version doesn't know are dropped,
+ * so a record saved by an older version with a count it no longer keeps (`nancyCount`)
+ * still loads.
  */
 function toMatchLog(value: unknown): MatchLog | null {
     if (!value || typeof value !== 'object') return null;
-    const { id, date, boardName, players: seats, winnerIndex, isDraw, sarzeeCount, nancyCount } =
+    const { id, date, boardName, players: seats, winnerIndex, isDraw, sarzeeCount } =
         value as Record<string, unknown>;
     if (typeof id !== 'string' || !id || typeof date !== 'string' || typeof boardName !== 'string') return null;
     if (!Array.isArray(seats) || seats.length === 0) return null;
@@ -302,7 +301,7 @@ function toMatchLog(value: unknown): MatchLog | null {
 
     if (!isCount(winnerIndex) || winnerIndex >= players.length) return null;
     if (isDraw !== undefined && typeof isDraw !== 'boolean') return null;
-    if (!isCount(sarzeeCount) || !isCount(nancyCount)) return null;
+    if (!isCount(sarzeeCount)) return null;
 
     const winner = players[winnerIndex];
     return {
@@ -314,7 +313,6 @@ function toMatchLog(value: unknown): MatchLog | null {
         winner: { name: winner.name, score: winner.score },
         ...(isDraw === undefined ? {} : { isDraw }),
         sarzeeCount,
-        nancyCount,
     };
 }
 

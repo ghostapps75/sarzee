@@ -63,7 +63,7 @@ const prefersReducedMotion = () =>
 const MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Fn', 'OS']);
 
 /**
- * The clock both celebrations run on.
+ * The clock the celebration runs on.
  *
  * Its length comes from the cue: the sound starts with the animation, and once the browser
  * knows how long the file is (and when it actually began playing) the run is fitted to end

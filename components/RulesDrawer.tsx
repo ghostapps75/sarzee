@@ -99,25 +99,8 @@ export default function RulesDrawer({ isOpen, onClose, theme: themeColors }: Rul
           {/* Subsection: Celebrations */}
           <div className="space-y-4">
             <h3 className="text-white font-bold uppercase tracking-wider text-xs border-b pb-1" style={{ borderColor: `${themeColors.border}20` }}>
-              Celebration Combinations
+              Celebration
             </h3>
-            
-            {/* Nancy Celebration */}
-            <div
-              className="p-3.5 rounded-xl border flex gap-3 items-start"
-              style={{
-                backgroundColor: 'rgba(74, 191, 172, 0.05)',
-                borderColor: 'rgba(74, 191, 172, 0.2)',
-              }}
-            >
-              <span className="text-2xl mt-0.5">💃</span>
-              <div>
-                <h4 className="font-bold text-[#4ABFAC]">Nancy Celebration</h4>
-                <p className="text-xs text-gray-400 mt-1 leading-normal">
-                  Rolled on the <strong className="text-white">first roll of a turn</strong>, when <strong className="text-white">all 5 dice are different</strong> and do <strong className="text-white">NOT</strong> form a straight (e.g. 1, 2, 4, 5, 6). Triggers a glorious neon dance celebration!
-                </p>
-              </div>
-            </div>
 
             {/* Sarzee Celebration */}
             <div

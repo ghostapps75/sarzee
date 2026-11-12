@@ -12,8 +12,7 @@ export type SoundId =
     | 'impact'
     | 'hold'
     | 'score'
-    | 'sarzee'
-    | 'nancy';
+    | 'sarzee';
 
 export interface SoundDef {
     /** Filename inside public/sounds. */
@@ -26,7 +25,7 @@ export interface SoundDef {
     /**
      * 'eager' warms the file up on the player's first interaction, so a die click or a
      * roll never waits on a download. 'lazy' waits until the sound is first needed —
-     * right for the celebrations, which most turns never trigger.
+     * right for the celebration, which most turns never trigger.
      */
     preload: 'eager' | 'lazy';
     /**
@@ -45,7 +44,6 @@ export const SOUNDS: Record<SoundId, SoundDef> = {
     // heard every turn: two soft notes (scripts/turn-chime.ts), kept the quietest cue.
     score: { file: 'chime.mp3', volume: 0.3, preload: 'eager', profile: 'ui' },
     sarzee: { file: 'sarzee.mp3', volume: 0.65, preload: 'lazy', profile: 'feature' },
-    nancy: { file: 'nancy.mp3', volume: 0.65, preload: 'lazy', profile: 'feature' },
 };
 
 export const soundUrl = (id: SoundId) => `/sounds/${SOUNDS[id].file}`;

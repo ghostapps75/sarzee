@@ -28,13 +28,11 @@ const MAX_LOAD_BYTES = 2_000_000;
 
 function summarize(logs: MatchLog[]) {
   let totalSarzees = 0;
-  let totalNancys = 0;
   let humanGames = 0;
   let humanWins = 0;
 
   logs.forEach((log) => {
     totalSarzees += log.sarzeeCount || 0;
-    totalNancys += log.nancyCount || 0;
 
     const players = Array.isArray(log.players) ? log.players : [];
 
@@ -56,7 +54,6 @@ function summarize(logs: MatchLog[]) {
     // Humans only, like the High Scores tab: a CPU's total is never anyone's best.
     best: bestHumanScore(logs),
     totalSarzees,
-    totalNancys,
     humanWinRate: humanGames > 0 ? Math.round((humanWins / humanGames) * 100) : 0,
   };
 }
@@ -391,13 +388,9 @@ export default function StatsDashboard({ isOpen, onClose, theme: themeColors }: 
                   <div className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Win Rate (vs AI)</div>
                   <div className="text-2xl font-black mt-1" style={{ color: themeColors.text }}>{stats.humanWinRate}%</div>
                 </div>
-                <div className="p-4 rounded-xl border border-white/5 bg-white/2 text-center">
+                <div className="col-span-2 p-4 rounded-xl border border-white/5 bg-white/2 text-center">
                   <div className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Total Sarzees</div>
                   <div className="text-2xl font-black text-yellow-400 mt-1">{stats.totalSarzees}</div>
-                </div>
-                <div className="p-4 rounded-xl border border-white/5 bg-white/2 text-center">
-                  <div className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Total Nancys</div>
-                  <div className="text-2xl font-black text-[#4ABFAC] mt-1">{stats.totalNancys}</div>
                 </div>
               </div>
 
@@ -446,7 +439,7 @@ export default function StatsDashboard({ isOpen, onClose, theme: themeColors }: 
                           <div className="text-right">
                             <div className="font-extrabold text-[#4ABFAC]">{winner?.score ?? log.winner?.score ?? 0} pts</div>
                             <div className="text-[9px] text-gray-400">
-                              {log.players?.length ?? 0} Players ({log.sarzeeCount} S / {log.nancyCount} N)
+                              {log.players?.length ?? 0} Players · {log.sarzeeCount || 0} {log.sarzeeCount === 1 ? 'Sarzee' : 'Sarzees'}
                             </div>
                           </div>
                         </div>

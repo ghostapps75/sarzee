@@ -31,9 +31,9 @@ interface DieProps {
     tapScale?: number;
     /**
      * Effects a celebration applies on top of the pose, mutated in place by the arena like
-     * the pose itself: hidden (a die that has hopped into the Nancy dumpster) and a glint.
+     * the pose itself: a glint.
      */
-    fx?: { visible: boolean; glow: number };
+    fx?: { glow: number };
 }
 
 // Every dimension is a proportion of the die's edge length, so resizing a die is a
@@ -208,7 +208,6 @@ function Die({
         if (!g) return;
         g.position.copy(position);
         g.quaternion.copy(quaternion);
-        g.visible = fx ? fx.visible : true;
         const body = bodyRef.current;
         if (body) {
             const glow = fx?.glow ?? 0;

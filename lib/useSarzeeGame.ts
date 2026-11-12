@@ -27,10 +27,10 @@ const ROLL_WATCHDOG_MS = 8000;
 export const UNDO_GRACE_MS = 4000;
 
 /**
- * What the hidden test keystroke can rig: the next roll comes up five of a kind, or the
- * next opening roll a Nancy, so either celebration can be checked without playing for it.
+ * What the hidden test keystroke can rig: the next roll comes up five of a kind, so the
+ * celebration can be checked without playing for it.
  */
-export type RiggedRoll = 'sarzee' | 'nancy';
+export type RiggedRoll = 'sarzee';
 
 /** A human's last score, offered back until the next roll. What the pad draws from. */
 export interface UndoOffer {
@@ -65,31 +65,6 @@ export function computePotentialScores(engine: SarzeeEngine, state: GameState) {
     return out;
 }
 
-/**
- * A "Nancy": the opening roll of a turn comes up five different numbers that don't
- * form a straight. Purely a house celebration, not a scoring category.
- */
-export function isNancy(dice: number[], rollsLeft: number): boolean {
-    // rollsLeft === 2 means the first of the three rolls has just happened.
-    if (rollsLeft !== 2) return false;
-
-    const unique = new Set(dice);
-    if (unique.size !== 5) return false;
-
-    const sorted = Array.from(unique).sort((a, b) => a - b);
-    let maxSeq = 1;
-    let currentSeq = 1;
-    for (let i = 0; i < sorted.length - 1; i++) {
-        if (sorted[i + 1] === sorted[i] + 1) {
-            currentSeq++;
-            maxSeq = Math.max(maxSeq, currentSeq);
-        } else {
-            currentSeq = 1;
-        }
-    }
-    return maxSeq < 4;
-}
-
 const normalizeDie = (v: number) => Math.max(1, Math.min(6, Math.round(v))) as DieValue;
 
 export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
@@ -110,15 +85,13 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
     const [isRolling, setIsRolling] = useState(false);
 
     const [sarzeesInGame, setSarzeesInGame] = useState(0);
-    const [nancysInGame, setNancysInGame] = useState(0);
     const [showCelebration, setShowCelebration] = useState(false);
-    const [showNancyCelebration, setShowNancyCelebration] = useState(false);
     const [highlightedCategory, setHighlightedCategory] = useState<ScoreCategory | null>(null);
     /**
      * A celebration has the dice: nothing may roll, hold or score until it ends. The
      * overlay already blocks the player; this also covers a CPU timer or a dev shortcut.
      */
-    const celebrating = showCelebration || showNancyCelebration;
+    const celebrating = showCelebration;
 
     const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -186,11 +159,9 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         setAllStates(enginesRef.current.map((e) => e.getGameState()));
         setPotentialScores(emptyPotentials());
         setSarzeesInGame(0);
-        setNancysInGame(0);
         setHighlightedCategory(null);
         setIsRolling(false);
         setShowCelebration(false);
-        setShowNancyCelebration(false);
         setUndo(null);
         setHighScorePlaces(null);
         clearTimers();
@@ -212,9 +183,7 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         setPlayerTypes([]);
         setIsRolling(false);
         setShowCelebration(false);
-        setShowNancyCelebration(false);
         setSarzeesInGame(0);
-        setNancysInGame(0);
         setHighlightedCategory(null);
         setUndo(null);
         setHighScorePlaces(null);
@@ -268,13 +237,6 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
             for (let i = 0; i < 5; i++) if (!live.heldDice[i]) decided[i] = value;
             rigRef.current = null;
             setRiggedRoll(null);
-        } else if (rig === 'nancy' && live.rollsLeft === 3) {
-            // Five different numbers that don't make a straight. Nothing is held on an
-            // opening roll, so all five are ours to deal.
-            const nancy: DieValue[] = [1, 2, 3, 5, 6];
-            for (let i = 0; i < 5; i++) decided[i] = nancy[i];
-            rigRef.current = null;
-            setRiggedRoll(null);
         }
 
         try {
@@ -315,15 +277,10 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
             // own beat before it starts moving, and shakes the table itself on its big moment.
             if (vals.length === 5 && vals.every((v) => v === vals[0])) {
                 setSarzeesInGame((prev) => prev + 1);
-                setShowNancyCelebration(false);
                 setShowCelebration(true);
-            } else if (gameState && isNancy(vals, gameState.rollsLeft)) {
-                setNancysInGame((prev) => prev + 1);
-                setShowCelebration(false);
-                setShowNancyCelebration(true);
             }
         },
-        [gameState]
+        []
     );
 
     const selectCategory = useCallback(
@@ -364,7 +321,6 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
                     types: playerTypes,
                     totals: states.map((s) => s.totalScore),
                     sarzeeCount: sarzeesInGame,
-                    nancyCount: nancysInGame,
                 });
                 matchLogId = log?.id ?? null;
                 // No record saved, no place on the board to claim.
@@ -400,7 +356,6 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
             customNames,
             playerTypes,
             sarzeesInGame,
-            nancysInGame,
             playSound,
             setUndo,
         ]
@@ -505,8 +460,6 @@ export function useSarzeeGame(arenaRef: RefObject<DiceArenaLike | null>) {
         // celebrations
         showCelebration,
         setShowCelebration,
-        showNancyCelebration,
-        setShowNancyCelebration,
         highlightedCategory,
         setHighlightedCategory,
     };

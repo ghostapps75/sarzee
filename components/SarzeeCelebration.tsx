@@ -61,9 +61,8 @@ const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
  * title's height in the same units.
  */
 function titleClearOfDice(points: DiePoint[], halfTitle: number): number {
-    const shown = points.filter((p) => p.visible);
     const reach = halfTitle + DIE_FRAC / 2;
-    const clearance = (y: number) => Math.min(Infinity, ...shown.map((p) => Math.abs(p.y - y))) - reach;
+    const clearance = (y: number) => Math.min(Infinity, ...points.map((p) => Math.abs(p.y - y))) - reach;
     if (clearance(TITLE_Y) >= 0) return TITLE_Y;
     let best = TITLE_Y;
     for (let y = halfTitle; y <= 1 - halfTitle; y += 0.01) {
@@ -93,7 +92,6 @@ export default function SarzeeCelebration({ arenaRef, theme, onDismiss }: Props)
     const flashRef = useRef<HTMLDivElement>(null);
 
     const cue = useRef<SarzeeCue>({
-        kind: 'sarzee',
         tau: 0,
         liftEnd: LIFT_END,
         slamStart: SLAM_START,
